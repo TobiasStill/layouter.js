@@ -1,0 +1,7 @@
+nbproject
+node_modules
+*.bat
+*.log
+.settings
+.idea
+.project
