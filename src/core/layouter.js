@@ -23,8 +23,9 @@ layouter = (function (root, factory) {
      * @class Node
      * @param {jQuery} $el
      */
-    exports.Node = Node = function ($el) {
+    exports.Node = Node = function ($el, layouter) {
         this.$el = $el;
+        this.layouter = layouter;
         this.childs = [];
         this.parent = undefined;
     };
@@ -89,18 +90,18 @@ layouter = (function (root, factory) {
      * @returns {Node}
      */
     Layouter.prototype.createNode = function ($el, options) {
-        var self = this, n = new Node($el), cs;
+        var self = this, n = new Node($el, this), cs, $cs, i;
         n.$el.data('layouter-node', n);
         //use provided parser
-        if (options.parser) {
+        if (options && options.parser) {
             cs = options.parser.parse(n.$el);
         }
         //use a jQuery selector expression
         else if (options.selector) {
             cs = n.$el.childs(options.selector);
         }
-        var $cs = (typeof cs == jQuery) ? cs : jQuery(cs);
-        var i = -1;
+        $cs = (typeof cs == jQuery) ? cs : jQuery(cs);
+        i = -1;
         $cs.each(function (c) {
             var cn = self.createNode(jQuery(c));
             cn.parent = n;

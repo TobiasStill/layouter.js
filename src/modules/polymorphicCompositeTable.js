@@ -22,16 +22,25 @@ layouter.polymorphicCompositeTable = function (root, factory) {
         Node = layouter.Node;
     /**
      * Since this is 'polymorphic table composite', this variable
-     * holds the current variant if there is any
+     * holds the current layout.name if there is any
      * @private
      */
-    var variant;
+    var layout;
     var types = exports.types = {};
     types.table = function ($el) {
         return ($el.hasClass('layouter-table'));
     };
     types.row = function ($el) {
         return ($el.hasClass('layouter-table-row'));
+    };
+    types.compound = function ($el) {
+        return ($el.hasClass('layouter-table-col') && $el.find('.layouter-table-row').length);
+    };
+    types.breaking = function ($el) {
+        return ($el.hasClass('layouter-table-col') && layout.breakColumns);
+    };
+    types.flexible = function ($el) {
+        return ($el.hasClass('layouter-table-col') && $el.hasClass('layouter-flexible'));
     };
     types.col = function ($el) {
         return ($el.hasClass('layouter-table-col'));
@@ -246,7 +255,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
     row.height.factor = function (node) {
         //get factor from element configuration
         var conf = node.getConfig();
-        return (conf.variants && conf.variants[variant] && conf.variants[variant].height) ||
+        return (conf.layouts && conf.layouts[layout.name] && conf.layouts[layout.name].height) ||
                 // OR derived from the number sibling rows
             1 / displayed(node.parent.childs).length ||
                 //OR 1
@@ -261,7 +270,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
         var p = node.parent,
         //get factor from element configuration
             conf = node.getConfig(),
-            f = (conf.variants && conf.variants[variant] && conf.variants[variant].height) ||
+            f = (conf.layouts && conf.layouts[layout.name] && conf.layouts[layout.name].height) ||
                     // OR derived from the number sibling rows
                 1 / displayed(node.parent.childs).length ||
                     //OR 1
@@ -319,7 +328,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
         var conf, f;
         //get factor from element configuration
         conf = node.getConfig();
-        f = (conf.variants && conf.variants[variant] && conf.variants[variant].width) ||
+        f = (conf.layouts && conf.layouts.hasOwnProperty(layout.name) && conf.layouts[layout.name].width) ||
             // OR derived from the number sibling rows
         1 / displayed(node.parent.childs).length ||
             //OR 1
@@ -410,17 +419,82 @@ layouter.polymorphicCompositeTable = function (root, factory) {
      * @param {Node} node
      * @returns {number}
      */
+    breaking.width.final = function (node) {
+        var r = node.getRoot();
+        return r.getWidth('final');
+    };
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    breaking.width.percent = function (node) {
+        return 100;
+    };
+
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    breaking.position.left_percent = function (node) {
+        return 0;
+    };
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    breaking.height.desired = function (node) {
+        var r = node.getRoot(), conf = r.getConfig(),
+            c = conf.layouts && conf.layouts.hasOwnProperty(layout.name);
+        if (!c) c = layout;
+        if (c.rowHeight)
+            return c.rowHeight;
+        if (c.height)
+            return conf.height;
+    };
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
     breaking.height.factor = function (node) {
         var conf, f;
         //get factor from element configuration
         conf = node.getConfig();
-        f = (conf.variants && conf.variants[variant] && conf.variants[variant].height) ||
+        f = (conf.layouts && conf.layouts.hasOwnProperty(layout.name) && conf.layouts[layout.name].height) ||
             //OR 1
         1;
         return f;
     };
     /**
-     * Calculator for compound cells, a complicated thing
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    breaking.position.left = function (node) {
+        return 0;
+    };
+
+    /**
+     * Calculator for flexible columns.
+     * A flexible column is one which's height is not affected by
+     * it's content.
+     * Accordingly the required height always equals the desired height
+     */
+    var flexible = calculators.flexible = jQuery.clone(col);
+
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    flexible.height.required = function (node) {
+        return node.getHeight('desired');
+    };
+    /**
+     * Calculator for compound cells, a rather complicated thing
      */
     var compound = calculators.compound = jQuery.clone(col);
 
@@ -477,7 +551,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
             else if (xs) {
                 //store it at the end of the collection
                 /**
-                 * @todo But this is not really sorting, dumbass
+                 * @todo But this is not really sorting, i mean...
                  */
                 rxs.push(r);
             }
@@ -518,6 +592,15 @@ layouter.polymorphicCompositeTable = function (root, factory) {
      * @param {Node} node
      * @returns {number}
      */
+    table.width.factor = function (node) {
+        return 1;
+    };
+
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
     table.height.desired = function (node) {
         //get dimensions of parent node
         var conf = node.getConfig(),
@@ -529,6 +612,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
         }
         return d;
     };
+
 
     /**
      * A parser
@@ -559,8 +643,24 @@ layouter.polymorphicCompositeTable = function (root, factory) {
      * @param {object} options
      */
     renderer.render = function (node, options) {
-        variant = options && options.variant;
-
+        var $el = node.$el, a = options.layout.animate, p, w, h, l, i, c;
+        layout = options.layout;
+        w = node.getWidth('final');
+        h = node.getHeight('final');
+        l = node.getPosition('left');
+        if(a){
+            p = a($el, w, h, l);
+        }
+        else{
+            node.$el.width(w);
+            node.$el.height(h);
+            node.$el.css('left', l);
+            p = {resolved:true};
+        }
+        for (i = 0; i < node.childs; i++) {
+            c = node.childs[i];
+            $.when(p).done(renderer.render(c, options));
+        }
     };
     return exports;
 });
