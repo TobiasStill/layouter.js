@@ -1,7 +1,9 @@
 /**
  * Created by Tobias Still on 29.10.2014.
+ * @module layouter
  */
-(function (root, factory) {
+var layouter;
+layouter = (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
 // AMD. Register as an anonymous module.
         define('layouter', ['jquery'], factory);
@@ -18,8 +20,7 @@
     var exports = {};
     var Layouter, Node;
     /**
-     *
-     * @constructs Node
+     * @class Node
      * @param {jQuery} $el
      */
     exports.Node = Node = function ($el) {
@@ -28,7 +29,15 @@
         this.parent = undefined;
     };
     /**
+     * @method Node#getConfig
+     * @returns {object}
+     */
+    Node.prototype.getConfig = function () {
+        return this.$el.data('layouter-config');
+    };
+    /**
      * Attach child nodes
+     * @method Node#attach
      * @param nodes {array.<Node>}
      */
     Node.prototype.attach = function (nodes) {
@@ -36,33 +45,59 @@
         for (var i = 0; i < nodes.length; i++)
             this.childs[i + l] = nodes[i];
     };
-    Node.prototype.render = function (cb) {
+    /**
+     * Get root-node
+     * @method Node#getRoot
+     * @returns {Node}
+     */
+    Node.prototype.getRoot = function () {
+        var r = function (n) {
+            if (n.parent === undefined)
+                return n;
+            return this.call(n.parent);
+        }(this);
+        return r;
+    };
+    /**
+     * Renders the node and its childs
+     * @method Node#render
+     * @param {object} options Must have property 'renderer' with method 'render'
+     */
+    Node.prototype.render = function (options) {
+        var cb = options.renderer.render;
         cb(this);
         for (var i = 0; i < this.childs.length; i++) {
             cb(this.childs[i]);
         }
     };
     /**
-     *
+     * @class Layouter
      * @param {jQuery} context The container, DOM element or HTML
-     * @param {string|function} filter jQuery-selector expression or
-     * a filter function that returns either a jQuery collection or an array of matched DOM elements
-     * @param options
+     * @param {object} options
      * */
-    exports.Layouter = Layouter = function (context, filter, options) {
+    exports.Layouter = Layouter = function (context, options) {
         this.options = options;
-        this.node = this.createNode(jQuery(context), filter);
+        if (options.parser || options.selector)
+            this.node = this.createNode(jQuery(context), options);
     };
-    Layouter.prototype.createNode = function ($el, filter) {
+    /**
+     * Parses a jQuery-element by the provided parser callback function
+     * and recursively creates a node its child nodes
+     * @method Layouter#createNode
+     * @param $el
+     * @param options
+     * @returns {Node}
+     */
+    Layouter.prototype.createNode = function ($el, options) {
         var self = this, n = new Node($el), cs;
         n.$el.data('layouter-node', n);
-        //if filter is a function
-        if (typeof filter === "function") {
-            cs = filter(n.$el);
+        //use provided parser
+        if (options.parser) {
+            cs = options.parser.parse(n.$el);
         }
-        //if filter is a jQuery selector expression
-        if (typeof filter === "string") {
-            cs = n.$el.childs(filter);
+        //use a jQuery selector expression
+        else if (options.selector) {
+            cs = n.$el.childs(options.selector);
         }
         var $cs = (typeof cs == jQuery) ? cs : jQuery(cs);
         var i = -1;
@@ -74,12 +109,11 @@
         return n;
     };
     /**
-     *
-     * @param cb The callback that does the rendering
+     * @method Layouter#render
+     * @param {object} options Must have property 'renderer' with method 'render'
      */
-    Layouter.prototype.render = function (cb) {
-        this.node.render(cb);
+    Layouter.prototype.render = function (options) {
+        this.node.render(options);
     };
     return exports;
-}))
-;
+}));
