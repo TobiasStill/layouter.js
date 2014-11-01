@@ -2,8 +2,7 @@
  * Created by Tobias Still on 30.10.2014.
  * @module layouter/polymorphicCompositeTable
  */
-var layouter = layouter || {};
-layouter.polymorphicCompositeTable = function (root, factory) {
+(function (root, factory) {
     if (typeof define === 'function' && define.amd) {
 // AMD. Register as an anonymous module.
         define('layouter/polymorphicCompositeTable', ['layouter', 'jquery'], factory);
@@ -14,106 +13,107 @@ layouter.polymorphicCompositeTable = function (root, factory) {
         module.exports = factory(require('jquery'), require('../core/layouter.js'));
     } else {
 // Browser globals (root is window)
-        root.returnExports = factory(root.jQuery, root.layouter);
+        root.layouter = factory(root.jQuery, root.layouter);
     }
 }(this, function (jQuery, layouter) {
     var exports = layouter,
         Layouter = layouter.Layouter,
         Node = layouter.Node;
     /**
+     * @typedef {Object} layout
+     * @property {string} layout#name
+     * @property {number} layout#height
+     * @property {number} layout#rowHeight
+     * @property {Function} layout#animate
+     * @property {boolean} layout#breakColumns
+     */
+    /**
      * Since this is 'polymorphic table composite', this variable
-     * holds the current layout.name if there is any
-     * @private
+     * holds the current layout if there is any
+     * @var {layout} layout
      */
     var layout;
+    /**
+     * @typedef {Function} mapping
+     * @param {jQuery} $el
+     * @return {boolean}
+     * /
+     /**
+     * The types map maps jQuery Elements to node types
+     * @var {Object.<string, mapping>} types
+     */
     var types = exports.types = {};
     types.table = function ($el) {
         return ($el.hasClass('layouter-table'));
     };
     types.row = function ($el) {
-        return ($el.hasClass('layouter-table-row'));
+        return ($el.hasClass('layouter-row'));
     };
     types.compound = function ($el) {
-        return ($el.hasClass('layouter-table-col') && $el.find('.layouter-table-row').length);
+        return ($el.hasClass('layouter-col') && $el.find('.layouter-row').length);
     };
     types.breaking = function ($el) {
-        return ($el.hasClass('layouter-table-col') && layout.breakColumns);
+        return ($el.hasClass('layouter-col') && layout.breakColumns);
     };
     types.flexible = function ($el) {
-        return ($el.hasClass('layouter-table-col') && $el.hasClass('layouter-flexible'));
+        return ($el.hasClass('layouter-col') && $el.hasClass('layouter-flexible'));
     };
     types.col = function ($el) {
-        return ($el.hasClass('layouter-table-col'));
+        return ($el.hasClass('layouter-col'));
     };
+
     /**
-     * @method Node#getType
-     * @returns {string}
+     * Here we define all the calculators
+     * for calculating the dimensions of a node in our layout
      */
-    Node.prototype.getType = function () {
-        var type;
-        if (this.type !== undefined)
-            return this.type;
-        for (type in types) {
-            if (types.hasOwnProperty(type) && types[type](this.$el))
-                this.type = type;
+    /**
+     * @typedef {Function} calculation
+     * @param {jQuery} $el
+     * @return {number}
+     * /
+     /**
+     * The calculators map maps node types
+     * to collections of calculations
+     * @var {Object.<string, Object.<string, calculation>>} calculators
+     */
+    var calculators = exports.calculators = {};
+    var calculatorTemplate = {
+        width: {
+            final: undefined,
+            percent: undefined,
+            factor: undefined,
+            inner: function (w, node) {
+                var d = node.$el.outerWidth(true) - node.$el.innerWidth();
+                return w - d;
+            },
+            outer: function (w, node) {
+                var d = node.$el.outerWidth(true) - node.$el.innerWidth();
+                return w + d;
+            }
+        },
+        height: {
+            desired: undefined,
+            required: undefined,
+            balanced: undefined,
+            final: undefined,
+            factor: undefined,
+            inner: function (h, node) {
+                var d = node.$el.outerHeight(true) - node.$el.innerHeight();
+                return h - d;
+            },
+            outer: function (h, node) {
+                var d = node.$el.outerHeight(true) - node.$el.innerHeight();
+                return h + d;
+            }
+        },
+        position: {
+            left: undefined,
+            left_percent: undefined
         }
-        return this.type;
     };
+
     /**
-     * @method Node#getCalculator
-     * @returns {object}
-     */
-    Node.prototype.getCalculator = function () {
-        var calc = calculators[this.getType()];
-        return calc;
-    };
-    /**
-     * @method Node#getHeight
-     * @param {string | number} q1 Qualifyer (desired|required|final|balanced) or number
-     * @param {string} q2 Optional qualifyer (outer|inner)
-     * @returns {*}
-     */
-    Node.prototype.getHeight = function (q1, q2) {
-        var calc = this.getCalculator(), n;
-        if (typeof q1 === 'string' && this.height[q1] === undefined) {
-            this.height[q1] = calc.height[q](this);
-        }
-        n = (typeof q1 !== 'string') ? q1 : this.height[q1];
-        return (q2 && calc.height[q2](n, this)) || n;
-    };
-    /**
-     * @method Node#getWidth
-     * @param {string | number} q1 Qualifyer (final|percent) or number
-     * @param {string} q2 Optional qualifyer (outer|inner)
-     * @returns {*}
-     */
-    Node.prototype.getWidth = function (q1, q2) {
-        var calc = this.getCalculator(), n;
-        if (typeof q1 === 'string' && this.width[q1] === undefined) {
-            this.width[q1] = calc.width[q1](this);
-        }
-        n = (typeof q1 !== 'string') ? q1 : this.width[q1];
-        return (q2 && calc.width[q2](n, this)) || n;
-    };
-    /**
-     * Checks if the nodes element has display
-     * @method Node#hasDisplay
-     * @returns {bool}
-     */
-    Node.prototype.hasDisplay = function () {
-        //get the jQuery DOM-elements of all the nodes ascendants
-        // via anonymous function
-        var $a = function (n, $a) {
-            if (n.parent === undefined)
-                return $a;
-            $a.add(n.parent.$el);
-            return this.call([n.parent, $a]);
-        }(this, jQuery());
-        //check if neither the node nor any of it's ascendants has display:none
-        return this.$el.css('display') !== 'none' && $a.css('display') !== 'none';
-    };
-    /**
-     *
+     * Return all nodes that have display
      * @param {Array.<Node>} nodes
      * @returns {Array}
      */
@@ -146,49 +146,130 @@ layouter.polymorphicCompositeTable = function (root, factory) {
     };
 
     /**
-     * Here we define all the calculators
-     * for calculating the dimensions of a node in our layout
-     * @type {Array}
+     * Get the nodes type
+     * @method Node#getType
+     * @returns {string}
      */
-    var calculators = exports.calculators = [];
-    var calculatorTemplate = {
-        width: {
-            final: undefined,
-            percent: undefined,
-            factor: undefined,
-            inner: function (w, node) {
-                var d = node.$el.outerWidth(true) - $el.innerWidth();
-                return w - d;
-            },
-            outer: function (w, node) {
-                var d = node.$el.outerWidth(true) - $el.innerWidth();
-                return w + d;
+    Node.prototype.getType = function () {
+        var type;
+        if (this.type !== undefined)
+            return this.type;
+        for (type in types) {
+            if (types.hasOwnProperty(type) && types[type](this.$el)) {
+                this.type = type;
+                return this.type;
             }
-        },
-        height: {
-            desired: undefined,
-            required: undefined,
-            balanced: undefined,
-            final: undefined,
-            factor: undefined,
-            inner: function (h, node) {
-                var d = node.$el.outerHeight(true) - $el.innerHeight();
-                return h - d;
-            },
-            outer: function (h, node) {
-                var d = node.$el.outerHeight(true) - $el.innerHeight();
-                return h + d;
-            }
-        },
-        position: {
-            left: undefined,
-            left_percent: undefined
         }
     };
     /**
+     * Get the nodes type corresponding calculator map
+     * @method Node#getCalculator
+     * @returns {object}
+     */
+    Node.prototype.getCalculator = function () {
+        return calculators[this.getType()];
+    };
+    /**
+     * Get or calculate the width of a node
+     * using various qualifiers
+     * @method Node#getWidth
+     * @param {string | number} q1 Qualifier (final|percent) or number
+     * @param {string} q2 Optional qualifier (outer|inner)
+     * @returns {*}
+     */
+    Node.prototype.getWidth = function (q1, q2) {
+        if (this.width === undefined)
+            this.width = {};
+        if (q2 === undefined && this.width[q1])
+            return this.width[q1];
+        var calc = this.getCalculator(), n;
+        if (typeof q1 === 'string' && this.width[q1] === undefined) {
+            this.width[q1] = calc.width[q1](this);
+        }
+        n = (typeof q1 !== 'string') ? q1 : this.width[q1];
+        return (q2 && calc.width[q2](n, this)) || n;
+    };
+    /**
+     * Get or calculate the height of a node
+     * using various qualifiers
+     * @method Node#getHeight
+     * @param {string | number} q1 Qualifier (desired|required|final|balanced) or number
+     * @param {string} q2 Optional qualifier (outer|inner)
+     * @returns {*}
+     */
+    Node.prototype.getHeight = function (q1, q2) {
+        if (this.height === undefined)
+            this.height = {};
+        if (q2 === undefined && this.height[q1])
+            return this.height[q1];
+        var calc = this.getCalculator(), n;
+        if (typeof q1 === 'string' && this.height[q1] === undefined) {
+            this.height[q1] = calc.height[q1](this);
+        }
+        n = (typeof q1 !== 'string') ? q1 : this.height[q1];
+        return (q2 && calc.height[q2](n, this)) || n;
+    };
+    /**
+     * Get or calculate the width of a node
+     * using various qualifiers
+     * @method Node#getWidth
+     * @param {string | number} q1 Qualifier (final|percent) or number
+     * @param {string} q2 Optional qualifier (outer|inner)
+     * @returns {*}
+     */
+    Node.prototype.getPosition = function (q1) {
+        if (this.position === undefined)
+            this.position = {};
+        if (this.position[q1])
+            return this.position[q1];
+        var calc = this.getCalculator(), n;
+        this.position[q1] = calc.position[q1](this);
+        return this.position[q1];
+    };
+    /**
+     * Checks if the nodes element has display
+     * @method Node#hasDisplay
+     * @returns {bool}
+     */
+    Node.prototype.hasDisplay = function () {
+        //get the jQuery DOM-elements of all the nodes ascendants
+        // via anonymous function
+        var ascendants = function (n, $a) {
+                if (n.parent === undefined)
+                    return $a;
+                $a.add(n.parent.$el);
+                return ascendants(n.parent, $a);
+            },
+            $a = ascendants(this, jQuery());
+        //check if neither the node nor any of it's ascendants has display:none
+        return this.$el.css('display') !== 'none' && $a.css('display') !== 'none';
+    };
+    /**
+     * Reset all layout properties
+     * @method Node#reset
+     * @param {boolean} up
+     * @param {boolean} down
+     */
+    Node.prototype.reset = function(up, down){
+        var i;
+        this.height = this.width = this.position = undefined;
+        if(up && this.parent){
+            this.parent.reset(true);
+        }
+        if(down && this.childs)
+            for (i = 0; i < this.childs.length; i++) {
+            this.childs[i].reset(false,true);
+        }
+    };
+
+    Layouter.prototype.before = function(){
+        this.node.reset(false, true);
+    };
+
+    /**
      * the calculators
      */
-    var row = calculators.row = jQuery.clone(calculatorTemplate);
+    var row = calculators.row = jQuery.extend(true, {}, calculatorTemplate);
     /**
      *
      * @param {Node} node
@@ -242,7 +323,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
             // the inner height of the node based on our
             // expectations so far, increase it accordingly
             if (cr > node.getHeight(r, 'inner'))
-                r = node.getHeight(r, 'inner');
+                r = cr;
         }
         //return the result
         return r;
@@ -255,7 +336,8 @@ layouter.polymorphicCompositeTable = function (root, factory) {
     row.height.factor = function (node) {
         //get factor from element configuration
         var conf = node.getConfig();
-        return (conf.layouts && conf.layouts[layout.name] && conf.layouts[layout.name].height) ||
+        return (conf && conf.layouts && conf.layouts.hasOwnProperty(layout.name) &&
+            conf.layouts[layout.name].height) ||
                 // OR derived from the number sibling rows
             1 / displayed(node.parent.childs).length ||
                 //OR 1
@@ -270,29 +352,38 @@ layouter.polymorphicCompositeTable = function (root, factory) {
         var p = node.parent,
         //get factor from element configuration
             conf = node.getConfig(),
-            f = (conf.layouts && conf.layouts[layout.name] && conf.layouts[layout.name].height) ||
-                    // OR derived from the number sibling rows
-                1 / displayed(node.parent.childs).length ||
-                    //OR 1
-                1,
-        //get the balanced height of the node parent col/table
-            b = p.getHeight('balanced'),
-        //assume final height as parents balanced height multiplied by factor
-            fh = p.getHeight(b, 'inner') * f,
+            f = node.getHeight('factor'),
+        //get the balanced inner height of the nodes parent col/table
+        //multiplied by factor
+            b = p.getHeight('balanced', 'inner') * f,
         //get the required height
             r = node.getHeight('required');
-        //if the required height exceeds the final height derived so far,
-        // increase it accordingly
-        if (r > fh) {
-            fh = r;
-        }
-        //return the result
-        return fh;
+        //return the balanced height or the required height if larger
+        return (r > b) ? r : b;
     };
+
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    row.position.left = function (node) {
+        return 0;
+    };
+
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    row.position.left_percent = function (node) {
+        return 0;
+    };
+
     /**
      * Leaf column
      */
-    var col = calculators.col = jQuery.clone(calculatorTemplate);
+    var col = calculators.col = jQuery.extend(true, {}, calculatorTemplate);
     /**
      *
      * @param {Node} node
@@ -328,7 +419,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
         var conf, f;
         //get factor from element configuration
         conf = node.getConfig();
-        f = (conf.layouts && conf.layouts.hasOwnProperty(layout.name) && conf.layouts[layout.name].width) ||
+        f = (conf && conf.layouts && conf.layouts.hasOwnProperty(layout.name) && conf.layouts[layout.name].width) ||
             // OR derived from the number sibling rows
         1 / displayed(node.parent.childs).length ||
             //OR 1
@@ -413,7 +504,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
     /**
      * Calculator for breaking columns
      */
-    var breaking = calculators.breaking = jQuery.clone(col);
+    var breaking = calculators.breaking = jQuery.extend(true, {}, col);
     /**
      *
      * @param {Node} node
@@ -483,7 +574,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
      * it's content.
      * Accordingly the required height always equals the desired height
      */
-    var flexible = calculators.flexible = jQuery.clone(col);
+    var flexible = calculators.flexible = jQuery.extend(true, {}, col);
 
     /**
      *
@@ -496,7 +587,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
     /**
      * Calculator for compound cells, a rather complicated thing
      */
-    var compound = calculators.compound = jQuery.clone(col);
+    var compound = calculators.compound = jQuery.extend(true, {}, col);
 
     /**
      *
@@ -514,7 +605,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
             cd = c[i].getHeight('desired');
             //if the row's required height exceeds it's desired height
             //increase the required height of the compound column accordingly
-            r = (cr > cd) ? r - cd + rh : r;
+            r = (cr > cd) ? r - cd + cr : r;
         }
         return r;
     };
@@ -539,7 +630,7 @@ layouter.polymorphicCompositeTable = function (root, factory) {
         for (i = 0; i < c.length; i++) {
             r = c[i];
             // store the amount of the current row's excess in the variable 'xs'
-            xs = r.getHeight('required') - row.getHeight('desired');
+            xs = r.getHeight('required') - r.getHeight('desired');
             //if the current row's excess exceeds all previous excesses
             if (xs > lxs) {
                 //track it as largest
@@ -585,8 +676,25 @@ layouter.polymorphicCompositeTable = function (root, factory) {
     /**
      * Calculator for the toplevel container
      */
-    var table = calculators.table = jQuery.clone(compound);
+    var table = calculators.table = jQuery.extend(true, {}, compound);
 
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    table.width.final = function (node) {
+        return node.$el.width();
+    };
+    /**
+     * The table derives it's dimensions from configuration or from the
+     * actual with of it's element.
+     * @param {Node} node
+     * @returns {number}
+     */
+    table.width.inner = function (w, node) {
+        return w;
+    };
     /**
      *
      * @param {Node} node
@@ -604,15 +712,51 @@ layouter.polymorphicCompositeTable = function (root, factory) {
     table.height.desired = function (node) {
         //get dimensions of parent node
         var conf = node.getConfig(),
-            d;
-        if (conf.height) d = conf.height;
-        if (conf.rowHeight) {
-            var s = displayed(node.childs).length;
-            d = node.getHeight(conf.rowHeight * s, 'outer');
-        }
-        return d;
+            r, s;
+        if (conf && conf.height) return node.getHeight(conf.height, 'outer');
+        if (layout.height) return node.getHeight(layout.height, 'outer');
+        r = (conf && conf.rowHeight) || layout.rowHeight;
+        s = displayed(node.childs).length;
+        return node.getHeight(r * s, 'outer');
     };
 
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    table.height.final = function (node) {
+        var r, d;
+        d = node.getHeight('desired');
+        r = node.getHeight('required');
+        return (r > d) ? r : d;
+    };
+    /**
+     * The table derives it's dimensions from configuration or from the
+     * actual with of it's element.
+     * @param {Node} node
+     * @returns {number}
+     */
+    table.height.inner = function (h, node) {
+        return h;
+    };
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    table.position.left = function (node) {
+        return 0;
+    };
+
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    table.position.left_percent = function (node) {
+        return 0;
+    };
 
     /**
      * A parser
@@ -625,10 +769,11 @@ layouter.polymorphicCompositeTable = function (root, factory) {
      * @returns {jQuery|null}
      */
     parser.parse = function ($el) {
-        var $c, $d = $el.find('.layouter-table-row, .layouter-table-col');
-        $d.each(function (el) {
-            if (jQuery(el).closest('.layouter-table, .layouter-table-row, .layouter-table-col') == $el)
-                $c.add(el);
+        var $c = jQuery(), $d = $el.find('.layouter-row, .layouter-col'), p;
+        $d.each(function (i, el) {
+            p = jQuery(el).parent().closest('.layouter-table, .layouter-row, .layouter-col');
+            if (p.get(0) === $el.get(0))
+                $c = $c.add(el);
         });
         return $c || null;
     };
@@ -638,29 +783,34 @@ layouter.polymorphicCompositeTable = function (root, factory) {
      */
     var renderer = exports.renderer = {};
     /**
+     * @typedef {Object} renderingOptions
+     * @property {layout} layout
+     */
+    /**
      *
      * @param {Node} node
-     * @param {object} options
+     * @param {renderingOptions} options
      */
     renderer.render = function (node, options) {
         var $el = node.$el, a = options.layout.animate, p, w, h, l, i, c;
+        //reset node
         layout = options.layout;
-        w = node.getWidth('final');
-        h = node.getHeight('final');
+        w = node.getWidth('final', 'inner');
+        h = node.getHeight('final', 'inner');
         l = node.getPosition('left');
-        if(a){
+        if (a) {
             p = a($el, w, h, l);
         }
-        else{
+        else {
             node.$el.width(w);
             node.$el.height(h);
             node.$el.css('left', l);
-            p = {resolved:true};
+            p = {resolved: true};
         }
-        for (i = 0; i < node.childs; i++) {
+        for (i = 0; i < node.childs.length; i++) {
             c = node.childs[i];
             $.when(p).done(renderer.render(c, options));
         }
     };
     return exports;
-});
+}));

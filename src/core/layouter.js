@@ -2,8 +2,7 @@
  * Created by Tobias Still on 29.10.2014.
  * @module layouter
  */
-var layouter;
-layouter = (function (root, factory) {
+(function (root, factory) {
     if (typeof define === 'function' && define.amd) {
 // AMD. Register as an anonymous module.
         define('layouter', ['jquery'], factory);
@@ -14,7 +13,7 @@ layouter = (function (root, factory) {
         module.exports = factory(require('jquery'));
     } else {
 // Browser globals (root is window)
-        root.returnExports = factory(root.jQuery);
+        root.layouter = factory(root.jQuery);
     }
 }(this, function (jQuery) {
     var exports = {};
@@ -24,9 +23,21 @@ layouter = (function (root, factory) {
      * @param {jQuery} $el
      */
     exports.Node = Node = function ($el, layouter) {
+        /**
+         * @member {jQuery} Node#$el
+         */
         this.$el = $el;
+        /**
+         * @member {Layouter} Node#layouter
+         */
         this.layouter = layouter;
+        /**
+         * @member {Array.<Node>} Node#childs
+         */
         this.childs = [];
+        /**
+         * @member {Node|undefined} Node#parent
+         */
         this.parent = undefined;
     };
     /**
@@ -34,7 +45,9 @@ layouter = (function (root, factory) {
      * @returns {object}
      */
     Node.prototype.getConfig = function () {
-        return this.$el.data('layouter-config');
+        var j =this.$el.data('layouter-config');
+        //if (j) j = jQuery.parseJSON(j);
+        return j;
     };
     /**
      * Attach child nodes
@@ -60,20 +73,24 @@ layouter = (function (root, factory) {
         return r;
     };
     /**
+     * @typedef {Object} renderer
+     * @property {Function} render
+     */
+    /**
      * Renders the node and its childs
      * @method Node#render
      * @param {object} options Must have property 'renderer' with method 'render'
      */
     Node.prototype.render = function (options) {
         var cb = options.renderer.render;
-        cb(this);
+        cb(this, options);
         for (var i = 0; i < this.childs.length; i++) {
-            cb(this.childs[i]);
+            cb(this.childs[i], options);
         }
     };
     /**
      * @class Layouter
-     * @param {jQuery} context The container, DOM element or HTML
+     * @param {jQuery | HTMLElement | string} context The container, DOM element or HTML
      * @param {object} options
      * */
     exports.Layouter = Layouter = function (context, options) {
@@ -102,19 +119,23 @@ layouter = (function (root, factory) {
         }
         $cs = (typeof cs == jQuery) ? cs : jQuery(cs);
         i = -1;
-        $cs.each(function (c) {
-            var cn = self.createNode(jQuery(c));
+        $cs.each(function (i, c) {
+            var cn = self.createNode(jQuery(c), options);
             cn.parent = n;
             n.childs[i++] = cn;
         });
         return n;
     };
+    Layouter.prototype.before = function(){};
+    Layouter.prototype.after = function(){};
     /**
      * @method Layouter#render
      * @param {object} options Must have property 'renderer' with method 'render'
      */
     Layouter.prototype.render = function (options) {
+        this.before();
         this.node.render(options);
+        this.after();
     };
     return exports;
 }));
