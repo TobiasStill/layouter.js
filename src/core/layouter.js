@@ -16,8 +16,30 @@
         root.layouter = factory(root.jQuery);
     }
 }(this, function (jQuery) {
-    var exports = {};
-    var Layouter, Node;
+    var exports = {}, Layouter, Node;
+    exports.version = '0.0.0';
+    /**
+     * @typedef {Object} Layouter~layout
+     * @property {string} name
+     * @property {number} height
+     * @property {number} rowHeight
+     * @property {Function} animate
+     * @property {boolean} breakColumns
+     */
+    /**
+     * The renderer
+     * @typedef {object} renderer
+     * @property {Function} render
+     * Hooks
+     * @property {Function} before
+     * @property {Function} after
+     */
+    /**
+     * The rendering options.
+     * @typedef {Object} Layouter~renderingOptions
+     * @property {Layouter~layout} layout - Layout options.
+     * @property {renderer} renderer - The renderer.
+     */
     /**
      * @class Node
      * @param {jQuery} $el
@@ -68,18 +90,15 @@
         var r = function (n) {
             if (n.parent === undefined)
                 return n;
-            return this.call(n.parent);
+            return n.parent.getRoot();
         }(this);
         return r;
     };
-    /**
-     * @typedef {Object} renderer
-     * @property {Function} render
-     */
+
     /**
      * Renders the node and its childs
      * @method Node#render
-     * @param {object} options Must have property 'renderer' with method 'render'
+     * @param {renderingOptions} options Must have property 'renderer' with method 'render'
      */
     Node.prototype.render = function (options) {
         var cb = options.renderer.render;
@@ -126,13 +145,15 @@
         });
         return n;
     };
+
     Layouter.prototype.before = function(){};
     Layouter.prototype.after = function(){};
     /**
      * @method Layouter#render
-     * @param {object} options Must have property 'renderer' with method 'render'
+     * @param {Layouter~renderingOptions} options
      */
     Layouter.prototype.render = function (options) {
+        this.layout = options && options.layout;
         this.before();
         this.node.render(options);
         this.after();

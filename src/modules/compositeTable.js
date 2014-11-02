@@ -1,11 +1,11 @@
 /**
  * Created by Tobias Still on 30.10.2014.
- * @module layouter/polymorphicCompositeTable
+ * @module layouter/compositeTable
  */
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
 // AMD. Register as an anonymous module.
-        define('layouter/polymorphicCompositeTable', ['layouter', 'jquery'], factory);
+        define('layouter/compositeTable', ['layouter', 'jquery'], factory);
     } else if (typeof exports === 'object') {
 // Node. Does not work with strict CommonJS, but
 // only CommonJS-like environments that support module.exports,
@@ -19,20 +19,7 @@
     var exports = layouter,
         Layouter = layouter.Layouter,
         Node = layouter.Node;
-    /**
-     * @typedef {Object} layout
-     * @property {string} layout#name
-     * @property {number} layout#height
-     * @property {number} layout#rowHeight
-     * @property {Function} layout#animate
-     * @property {boolean} layout#breakColumns
-     */
-    /**
-     * Since this is 'polymorphic table composite', this variable
-     * holds the current layout if there is any
-     * @var {layout} layout
-     */
-    var layout;
+
     /**
      * @typedef {Function} mapping
      * @param {jQuery} $el
@@ -43,23 +30,24 @@
      * @var {Object.<string, mapping>} types
      */
     var types = exports.types = {};
-    types.table = function ($el) {
-        return ($el.hasClass('layouter-table'));
+    types.table = function (node) {
+        return (node.$el.hasClass('layouter-table'));
     };
-    types.row = function ($el) {
-        return ($el.hasClass('layouter-row'));
+    types.row = function (node) {
+        return (node.$el.hasClass('layouter-row'));
     };
-    types.compound = function ($el) {
-        return ($el.hasClass('layouter-col') && $el.find('.layouter-row').length);
+    types.compound = function (node) {
+        return (node.$el.hasClass('layouter-col') && node.$el.find('.layouter-row').length);
     };
-    types.breaking = function ($el) {
-        return ($el.hasClass('layouter-col') && layout.breakColumns);
+    types.breaking = function (node) {
+        var l = node.layouter && node.layouter.layout;
+        return (node.$el.hasClass('layouter-col') && l && l.breakColumns);
     };
-    types.flexible = function ($el) {
-        return ($el.hasClass('layouter-col') && $el.hasClass('layouter-flexible'));
+    types.flexible = function (node) {
+        return (node.$el.hasClass('layouter-col') && node.$el.hasClass('layouter-flexible'));
     };
-    types.col = function ($el) {
-        return ($el.hasClass('layouter-col'));
+    types.col = function (node) {
+        return (node.$el.hasClass('layouter-col'));
     };
 
     /**
@@ -155,7 +143,7 @@
         if (this.type !== undefined)
             return this.type;
         for (type in types) {
-            if (types.hasOwnProperty(type) && types[type](this.$el)) {
+            if (types.hasOwnProperty(type) && types[type](this)) {
                 this.type = type;
                 return this.type;
             }
@@ -335,9 +323,9 @@
      */
     row.height.factor = function (node) {
         //get factor from element configuration
-        var conf = node.getConfig();
-        return (conf && conf.layouts && conf.layouts.hasOwnProperty(layout.name) &&
-            conf.layouts[layout.name].height) ||
+        var conf = node.getConfig(), l = node.layouter && node.layouter.layout;
+        return (conf && conf.layouts && l.name && conf.layouts.hasOwnProperty(l.name) &&
+            conf.layouts[l.name].height) ||
                 // OR derived from the number sibling rows
             1 / displayed(node.parent.childs).length ||
                 //OR 1
@@ -416,10 +404,11 @@
      * @returns {number}
      */
     col.width.factor = function (node) {
-        var conf, f;
+        var conf, f, l = node.layouter && node.layouter.layout;
         //get factor from element configuration
         conf = node.getConfig();
-        f = (conf && conf.layouts && conf.layouts.hasOwnProperty(layout.name) && conf.layouts[layout.name].width) ||
+        f = (conf && conf.layouts && l.name && conf.layouts.hasOwnProperty(l.name) &&
+        conf.layouts[l.name].width) ||
             // OR derived from the number sibling rows
         1 / displayed(node.parent.childs).length ||
             //OR 1
@@ -538,7 +527,8 @@
      */
     breaking.height.desired = function (node) {
         var r = node.getRoot(), conf = r.getConfig(),
-            c = conf.layouts && conf.layouts.hasOwnProperty(layout.name);
+            l = node.layouter && node.layouter.layout,
+            c = conf.layouts && l.name && conf.layouts.hasOwnProperty(l.name);
         if (!c) c = layout;
         if (c.rowHeight)
             return c.rowHeight;
@@ -551,10 +541,10 @@
      * @returns {number}
      */
     breaking.height.factor = function (node) {
-        var conf, f;
+        var conf, f,  l = node.layouter && node.layouter.layout;
         //get factor from element configuration
         conf = node.getConfig();
-        f = (conf.layouts && conf.layouts.hasOwnProperty(layout.name) && conf.layouts[layout.name].height) ||
+        f = (conf.layouts && l.name && conf.layouts.hasOwnProperty(l.name) && conf.layouts[l.name].height) ||
             //OR 1
         1;
         return f;
@@ -684,24 +674,9 @@
      * @returns {number}
      */
     table.width.final = function (node) {
-        return node.$el.width();
-    };
-    /**
-     * The table derives it's dimensions from configuration or from the
-     * actual with of it's element.
-     * @param {Node} node
-     * @returns {number}
-     */
-    table.width.inner = function (w, node) {
-        return w;
-    };
-    /**
-     *
-     * @param {Node} node
-     * @returns {number}
-     */
-    table.width.factor = function (node) {
-        return 1;
+        var l = node.layouter && node.layouter.layout,
+        w = l && l.width || node.$el.width();
+        return node.getWidth(w, 'outer');
     };
 
     /**
@@ -712,10 +687,10 @@
     table.height.desired = function (node) {
         //get dimensions of parent node
         var conf = node.getConfig(),
-            r, s;
+            r, s,  l = node.layouter && node.layouter.layout;
         if (conf && conf.height) return node.getHeight(conf.height, 'outer');
-        if (layout.height) return node.getHeight(layout.height, 'outer');
-        r = (conf && conf.rowHeight) || layout.rowHeight;
+        if (l && l.height) return node.getHeight(l.height, 'outer');
+        r = (conf && conf.rowHeight) || (l && l.rowHeight);
         s = displayed(node.childs).length;
         return node.getHeight(r * s, 'outer');
     };
@@ -757,14 +732,11 @@
     table.position.left_percent = function (node) {
         return 0;
     };
-
     /**
-     * A parser
-     * @type {object}
+     * @var {parser} parser
      */
     var parser = exports.parser = {};
     /**
-     *
      * @param {jQuery} $el
      * @returns {jQuery|null}
      */
@@ -777,39 +749,93 @@
         });
         return $c || null;
     };
+
     /**
-     * A renderer
-     * @type {object}
+     * @var {renderer} renderer
      */
     var renderer = exports.renderer = {};
-    /**
-     * @typedef {Object} renderingOptions
-     * @property {layout} layout
-     */
+    renderer.align = function(h, r, $el, a) {
+        var s, t, an;
+        $el.css('position', 'relative').css('top', '');
+        s = h - r;
+        if (s < 1)
+            return (a)? new $.Deferred().resolve(): null;
+        t = (s) / 2;
+        an = function($el, t){
+            return $el.animate({'position':'relative', 'top':t}).promise();
+        };
+        if (an){
+            return an($el, t);
+        }
+        $el.css('position', 'relative').css('top', t);
+    };
+    renderer.before = function(){};
+    renderer.after = function(){};
+
     /**
      *
+     * @param node
+     * @param h
+     * @param a
+     * @returns {*}
+     */
+
+    var align = function(node, h, a) {
+        var r, $el, s, t, an;
+        if(node.getType() !=='col' || !($el = node.$el.find('.align')) || !$el.length){
+            return null;
+        }
+        r = node.getHeight('required', 'inner');
+        s = h - r;
+        if (s < 1)
+            return (a)? {resolved: true}: null;
+        t = (s) / 2;
+        if (a){
+            an = function($el, t){
+                return $el.animate({'position':'relative', 'top':t}).promise();
+            };
+            return an($el, t);
+        }
+        $el.css('position', 'relative').css('top', t);
+        return {resolved: true};
+    };
+
+    /**
+     *
+     * @param $el
+     * @param w
+     * @param h
+     * @param l
+     * @returns {{resolved: boolean}}
+     */
+    var apply = function($el, w, h, l){
+        $el.width(w);
+        $el.height(h);
+        $el.css('left', l);
+        return {resolved: true};
+    };
+
+    /**
+     * Here i override the rendering function
+     * to add vertical alignment
      * @param {Node} node
      * @param {renderingOptions} options
      */
-    renderer.render = function (node, options) {
-        var $el = node.$el, a = options.layout.animate, p, w, h, l, i, c;
-        //reset node
-        layout = options.layout;
+    exports.renderer.render = function (node, options) {
+        var $el = node.$el, a = options.layout.animate, p, w, h, l, i, c, r;
         w = node.getWidth('final', 'inner');
         h = node.getHeight('final', 'inner');
         l = node.getPosition('left');
         if (a) {
-            p = a($el, w, h, l);
+            a($el, w, h, l);
         }
         else {
-            node.$el.width(w);
-            node.$el.height(h);
-            node.$el.css('left', l);
-            p = {resolved: true};
+            apply($el, w, h, l);
         }
+        align(node, h, a);
         for (i = 0; i < node.childs.length; i++) {
             c = node.childs[i];
-            $.when(p).done(renderer.render(c, options));
+            options.renderer.render(c, options);
         }
     };
     return exports;
