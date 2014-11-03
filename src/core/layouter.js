@@ -19,7 +19,17 @@
     var exports = {}, Layouter, Node;
     exports.version = '0.0.0';
     /**
-     * @typedef {Object} Layouter~layout
+     * The parser
+     * @typedef {object} Layouter~parser
+     * @property {Function} parse
+     */
+    /**
+     * The layouter options.
+     * @typedef {Object} Layouter~layouterOptions
+     * @property {Layouter~parser} parser
+     */
+    /**
+     * @typedef {Object} Layouter~layoutConfiguration
      * @property {string} name
      * @property {number} height
      * @property {number} rowHeight
@@ -30,14 +40,13 @@
      * The renderer
      * @typedef {object} renderer
      * @property {Function} render
-     * Hooks
      * @property {Function} before
      * @property {Function} after
      */
     /**
      * The rendering options.
      * @typedef {Object} Layouter~renderingOptions
-     * @property {Layouter~layout} layout - Layout options.
+     * @property {Layouter~layoutConfiguration} layout - Layout options.
      * @property {renderer} renderer - The renderer.
      */
     /**
@@ -108,14 +117,41 @@
         }
     };
     /**
+     * Gets layouter options
+     * @method Layouter#get
+     * @param {string} context The name of the layouter option to return
+     * @returns {*}
+     * */
+    Node.prototype.get = function (option) {
+        return this.layouter.get(option);
+    };
+    /**
      * @class Layouter
      * @param {jQuery | HTMLElement | string} context The container, DOM element or HTML
      * @param {object} options
      * */
     exports.Layouter = Layouter = function (context, options) {
-        this.options = options;
+        this.options = jQuery.extend(options, this.getDefaults());
         if (options.parser || options.selector)
             this.node = this.createNode(jQuery(context), options);
+    };
+    /**
+     * Gets default layouter options.
+     * To be overridden by modules
+     * @method Layouter#getDefaults
+     * @returns {*}
+     * */
+    Layouter.prototype.getDefaults = function () {
+        return {};
+    };
+    /**
+     * Gets layouter options
+     * @method Layouter#get
+     * @param {string} context The name of the layouter option to return
+     * @returns {*}
+     * */
+    Layouter.prototype.get = function (option) {
+        return this.options && this.options[option];
     };
     /**
      * Parses a jQuery-element by the provided parser callback function
