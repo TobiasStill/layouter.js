@@ -2,7 +2,7 @@ nbproject
 node_modules
 *.bat
 *.log
+*.db
 .settings
 .idea
 .project
-.db
