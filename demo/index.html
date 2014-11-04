@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>
+<html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>
+<html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>
+<html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!-->
+<html class="no-js" lang="de-DE">
+<!--<![endif]-->
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Grid Example</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width">
+
+    <script src="vendor/modernizr-2.6.2.min.js"></script>
+    <link rel="stylesheet" href="vendor/normalize.min.css">
+    <script src="vendor/jquery-1.11.1.js"></script>
+    <script src="vendor/jquery.debouncedresize.js"></script>
+    <script src="../src/core/layouter.js"></script>
+    <script src="../src/modules/compositeTable.js"></script>
+
+    <style>
+        body {
+            font-size: 30px;
+        }
+
+        h1 {
+            text-leaf: center;
+        }
+
+        #wrapper {
+            margin: 10px auto 50px auto;
+            position: relative;
+        }
+
+        .leaf {
+            margin: 0 20px 20px 0;
+            padding: 10px;
+            background-color: #EFEFEF;
+            /*box-shadow : 5px 5px 5px 0px rgba(50, 50, 50, 0.25);*/
+            overflow: hidden;
+        }
+
+        .layouter-col, .layouter-row {
+            overflow: hidden;
+        }
+
+        .blue.leaf {
+            background-color: #275294 !important;
+        }
+
+        .yellow.leaf {
+            background-color: #EBCE7D !important;
+        }
+
+        .red.leaf {
+            background-color: #BB4A22 !important;
+        }
+
+        .layouter-cropped.picture {
+            padding: 0;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        @media screen and (min-width: 480px) {
+            .breakpoint-test {
+                position: relative;
+            }
+
+        }
+    </style>
+</head>
+<body>
+<h1></h1>
+
+<div id="wrapper" class="layouter-table">
+    <section class="layouter-row">
+        <div class="layouter-col" data-layouter-config='{"layouts":{"large":{"width":0.25}}}'>
+            <div class="layouter-row" data-layouter-config='{"layouts":{"large":{"height":0.25}}}'>
+                <div class="layouter-col leaf" data-layouter-config='{"layouts":{"large":{"width":0.25}}}'>
+                    <div>
+                    </div>
+                </div>
+                <div class="layouter-col layouter-cropped picture leaf"
+                     data-layouter-config='{"layouts":{"large":{"width":0.75}}}'>
+                    <img src="picture.jpg" alt=""/>
+                </div>
+            </div>
+            <div class="layouter-row" data-layouter-config='{"layouts":{"large":{"height":0.5}}}'>
+                <div class="layouter-col layouter-align red leaf">
+                    <div>
+                        Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
+                        Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque
+                        penatibus et magnis dis parturient montes, nascetur ridiculus mus.
+                        Donec quam felis.
+
+                    </div>
+                </div>
+            </div>
+            <div class="layouter-row" data-layouter-config='{"layouts":{"large":{"height":0.25}}}'>
+                <div class="layouter-col layouter-align leaf"
+                     data-layouter-config='{"layouts":{"large":{"width":0.5}}}'>
+                    <div></div>
+                </div>
+                <div class="layouter-col layouter-align leaf"
+                     data-layouter-config='{"layouts":{"large":{"width":0.5}}}'>
+                    <div></div>
+                </div>
+            </div>
+        </div>
+        <div class="layouter-col" data-layouter-config='{"layouts":{"large":{"width":0.75}}}'>
+            <div class="layouter-row" data-layouter-config='{"layouts":{"large":{"height":0.2}}}'>
+                <div class="layouter-col leaf" data-layouter-config='{"layouts":{"large":{"width":0.8}}}'></div>
+                <div class="layouter-col layouter-align center leaf red"
+                     data-layouter-config='{"layouts":{"large":{"width":0.2}}}'>
+                    <div>#7</div>
+                </div>
+            </div>
+            <div class="layouter-row" data-layouter-config='{"layouts":{"large":{"height":0.2}}}'>
+                <div class="layouter-col layouter-align leaf blue"
+                     data-layouter-config='{"layouts":{"large":{"width":0.8}}}'>
+                    <div>
+                        Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
+                        Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque
+                        penatibus et magnis dis parturient montes, nascetur ridiculus mus.
+                        Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem.
+                        Nulla consequat massa quis enim. Donec pede justo, fringilla vel,
+                        aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet
+                        a, venenatis vitae, justo.
+                    </div>
+                </div>
+                <div class="layouter-col leaf" data-layouter-config='{"layouts":{"large":{"width":0.2}}}'></div>
+            </div>
+            <div class="layouter-row" data-layouter-config='{"layouts":{"large":{"height":0.2}}}'>
+                <div class="layouter-col leaf" data-layouter-config='{"layouts":{"large":{"width":0.2}}}'></div>
+                <div class="layouter-col leaf" data-layouter-config='{"layouts":{"large":{"width":0.8}}}'></div>
+            </div>
+            <div class="layouter-row" data-layouter-config='{"layouts":{"large":{"height":0.4}}}'>
+                <div class="layouter-col leaf" data-layouter-config='{"layouts":{"large":{"width":0.2}}}'></div>
+                <div class="layouter-col layouter-align center leaf yellow"
+                     data-layouter-config='{"layouts":{"large":{"width":0.8}}}'>
+                    <div>#9</div>
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+</div>
+
+<script>
+    var handheld,
+            viewport = {
+                large: false,
+                width: 0,
+                height: 0
+            },
+            aLayouter,
+            options = {},
+            animate,
+            mobile = {},
+            large = {};
+    //handheld?
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        handheld = true;
+    }
+    //instantiate layouter
+    aLayouter = new layouter.Layouter($('#wrapper'), {parser: layouter.parser});
+
+    /*layouts*/
+    mobile.name = 'mobile';
+    mobile.breakColumns = true;
+    large.name = 'large';
+    //animation
+    mobile.animate = large.animate = function ($el, w, h, l, p) {
+        return $el.css('position', p).animate({'width': w, 'height': h, 'left': l}, 500).promise();
+    };
+
+
+    function measure() {
+        var $div;
+        // viewport height (with iphone fix)
+        viewport.height = (handheld && window.screen.availHeight) ? window.screen.availHeight : $(window).height();
+        // actual content width
+        $div = $('<div class="breakpoint-test"></div>');
+        $(document.body).append($div);
+        viewport.width = $div.width();
+        // is this a large screen according to media-query?
+        viewport.large = ($div.css("position") === "relative");
+        $div.remove();
+    }
+
+    function doLayout() {
+        var w, h;
+        measure();
+        w = (viewport.width > 1440) ? 1440 : viewport.width - 40;
+        h = (viewport.large) ? (w / 16) * 9 : viewport.height / 3;
+        $('#wrapper').css('max-width', w);
+        options.layout = (viewport.large) ? large : mobile;
+        options.layout.width = w;
+        options.layout.rowHeight = h;
+        return aLayouter.render(options);
+    }
+
+    doLayout();
+    $(window).on('debouncedresize', function () {
+        doLayout();
+    });
+</script>
+</body>
+</html>
