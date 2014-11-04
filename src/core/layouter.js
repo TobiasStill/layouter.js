@@ -5,7 +5,7 @@
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
 // AMD. Register as an anonymous module.
-        define('layouter', ['jquery'], factory);
+        define('layouter', ['jQuery'], factory);
     } else if (typeof exports === 'object') {
 // Node. Does not work with strict CommonJS, but
 // only CommonJS-like environments that support module.exports,
@@ -70,6 +70,11 @@
          * @member {Node|undefined} Node#parent
          */
         this.parent = undefined;
+        /**
+         * @member {Node|undefined} Node#layout Holds all the layout properties (height, width, etc.)
+         *
+         */
+        this.layout = {};
     };
     /**
      * @method Node#getConfig
@@ -117,37 +122,56 @@
         }
     };
     /**
-     * Gets layouter options
-     * @method Layouter#get
-     * @param {string} context The name of the layouter option to return
+     * Gets layouter option
+     * @method Node#get
+     * @param {string} option The name of the layouter option to return
      * @returns {*}
      * */
     Node.prototype.get = function (option) {
         return this.layouter.get(option);
     };
+
+    /**
+     * Reset all layout properties
+     * @method Node#reset
+     * @param {boolean} up
+     * @param {boolean} down
+     */
+    Node.prototype.reset = function (up, down) {
+        var i;
+        this.layout = {};
+        if (up && this.parent) {
+            this.parent.reset(true);
+        }
+        if (down && this.childs)
+            for (i = 0; i < this.childs.length; i++) {
+                this.childs[i].reset(false, true);
+            }
+    };
+
     /**
      * @class Layouter
      * @param {jQuery | HTMLElement | string} context The container, DOM element or HTML
      * @param {object} options
      * */
     exports.Layouter = Layouter = function (context, options) {
-        this.options = jQuery.extend(options, this.getDefaults());
-        if (options.parser || options.selector)
-            this.node = this.createNode(jQuery(context), options);
+        this.options = jQuery.extend(options, this.getDefaults('layouter'));
+            this.node = this.createNode(jQuery(context));
     };
     /**
      * Gets default layouter options.
      * To be overridden by modules
      * @method Layouter#getDefaults
+     * @param {string} q ('layouter'|'rendering')
      * @returns {*}
      * */
-    Layouter.prototype.getDefaults = function () {
+    Layouter.prototype.getDefaults = function (q) {
         return {};
     };
     /**
-     * Gets layouter options
+     * Gets layouter option
      * @method Layouter#get
-     * @param {string} context The name of the layouter option to return
+     * @param {string} option The name of the layouter option to return
      * @returns {*}
      * */
     Layouter.prototype.get = function (option) {
@@ -158,26 +182,25 @@
      * and recursively creates a node its child nodes
      * @method Layouter#createNode
      * @param $el
-     * @param options
      * @returns {Node}
      */
-    Layouter.prototype.createNode = function ($el, options) {
-        var self = this, n = new Node($el, this), cs, $cs, i;
+    Layouter.prototype.createNode = function ($el) {
+        var self = this, n = new Node($el, this), cs, $cs,
+            p = this.get('parser'), s = this.get('selector');
         n.$el.data('layouter-node', n);
         //use provided parser
-        if (options && options.parser) {
-            cs = options.parser.parse(n.$el);
+        if (p) {
+            cs = p.parse(n.$el);
         }
         //use a jQuery selector expression
-        else if (options.selector) {
-            cs = n.$el.childs(options.selector);
+        else if (s) {
+            cs = n.$el.childs(s);
         }
         $cs = (typeof cs == jQuery) ? cs : jQuery(cs);
-        i = -1;
         $cs.each(function (i, c) {
-            var cn = self.createNode(jQuery(c), options);
+            var cn = self.createNode(jQuery(c));
             cn.parent = n;
-            n.childs[i++] = cn;
+            n.childs[i] = cn;
         });
         return n;
     };
@@ -189,6 +212,7 @@
      * @param {Layouter~renderingOptions} options
      */
     Layouter.prototype.render = function (options) {
+        options = jQuery.extend(options, this.getDefaults('rendering'));
         this.layout = options && options.layout;
         this.before();
         this.node.render(options);
