@@ -16,8 +16,10 @@
         root.layouter = factory(root.jQuery);
     }
 }(this, function (jQuery) {
-    var exports = {}, Layouter, Node;
+    var exports = {}, Layouter, Node, $ = jQuery;
+    exports.$ = $;
     exports.version = '0.0.0';
+
     /**
      * The parser
      * @typedef {object} Layouter~parser
@@ -81,7 +83,7 @@
      * @returns {object}
      */
     Node.prototype.getConfig = function () {
-        var j =this.$el.data('layouter-config');
+        var j = this.$el.data('layouter-config');
         //if (j) j = jQuery.parseJSON(j);
         return j;
     };
@@ -148,15 +150,59 @@
                 this.childs[i].reset(false, true);
             }
     };
+    /**
+     * Find nodes matching criteria evaluated by a callback function
+     * @param {Function} fn Callback to match nodes
+     * @param {boolean} deep If true, perform deep search all the way
+     * down or up the hierarchy and return all matches,
+     * if false the search will only return the closest matches in the
+     * hierarchy upwards or downwards or both
+     * @param {boolean} up If true, search upwards the hierarchy
+     * @param {boolean} down If true, search downwards the hierarchy
+     */
+    Node.prototype.find = function (cb, deep, up, down) {
+        var i, j, r = [], rr = [], m = false;
+        up = (up || !(up || down))? true:false;
+        down = (down || !(up || down))? true:false;
+        this.layout = {};
+        if (up && this.parent) {
+            if(cb(this.parent)){
+                r.push(this.parent);
+                m = true;
+            }
+            if(deep || !m){
+                rr = this.parent.find(cb, deep, up, down);
+                for(j = 0; j < rr.length; j++){
+                    r.push.(rr[j]);
+                }
+            }
+        }
+        m = false;
+        rr = [];
+        if (down && this.childs.length)
+            for (i = 0; i < this.childs.length; i++) {
+                if(cb(this.childs[i])){
+                    r.push(this.childs[i]);
+                    m = true
+                }
+                if(deep || !m){
+                    rr = this.childs[i].find(cb, deep, up, down);
+                    for(j = 0; j < rr.length; j++){
+                        r.push.(rr[j]);
+                    }
+                }
+            }
+        return r;
+    };
 
     /**
      * @class Layouter
-     * @param {jQuery | HTMLElement | string} context The container, DOM element or HTML
+     * @param {$ | HTMLElement | string} context The container, DOM element or HTML
      * @param {object} options
      * */
     exports.Layouter = Layouter = function (context, options) {
-        this.options = jQuery.extend(options, this.getDefaults('layouter'));
-            this.node = this.createNode(jQuery(context));
+        this.options = $.extend(options, this.getDefaults('layouter'));
+        this.node = this.createNode($(context));
     };
     /**
      * Gets default layouter options.
@@ -196,23 +242,25 @@
         else if (s) {
             cs = n.$el.childs(s);
         }
-        $cs = (typeof cs == jQuery) ? cs : jQuery(cs);
+        $cs = (typeof cs == 'jQuery') ? cs : $(cs);
         $cs.each(function (i, c) {
-            var cn = self.createNode(jQuery(c));
+            var cn = self.createNode($(c));
             cn.parent = n;
             n.childs[i] = cn;
         });
         return n;
     };
 
-    Layouter.prototype.before = function(){};
-    Layouter.prototype.after = function(){};
+    Layouter.prototype.before = function () {
+    };
+    Layouter.prototype.after = function () {
+    };
     /**
      * @method Layouter#render
      * @param {Layouter~renderingOptions} options
      */
     Layouter.prototype.render = function (options) {
-        options = jQuery.extend(options, this.getDefaults('rendering'));
+        options = $.extend(options, this.getDefaults('rendering'));
         this.layout = options && options.layout;
         this.before();
         this.node.render(options);
