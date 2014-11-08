@@ -151,8 +151,9 @@
             }
     };
     /**
+     * @method Node#find
      * Find nodes matching criteria evaluated by a callback function
-     * @param {Function} fn Callback to match nodes
+     * @param {Function} cb Callback to match nodes
      * @param {boolean} deep If true, perform deep search all the way
      * down or up the hierarchy and return all matches,
      * if false the search will only return the closest matches in the
