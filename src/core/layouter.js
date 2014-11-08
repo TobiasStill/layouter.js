@@ -152,19 +152,18 @@
     };
     /**
      * @method Node#find
-     * Find nodes matching criteria evaluated by a callback function
+     * Recursively find nodes matching criteria evaluated by a callback function
      * @param {Function} cb Callback to match nodes
-     * @param {boolean} deep If true, perform deep search all the way
+     * @param {boolean} [deep] If true, perform deep search all the way
      * down or up the hierarchy and return all matches,
      * if false the search will only return the closest matches in the
      * hierarchy upwards or downwards or both
-     * @param {boolean} up If true, search upwards the hierarchy
-     * @param {boolean} down If true, search downwards the hierarchy
+     * @param {boolean} [up] If true, search upwards the hierarchy
+     * @param {boolean} [down] If true OR undefined, search downwards the hierarchy
      */
     Node.prototype.find = function (cb, deep, up, down) {
         var i, j, r = [], rr = [], m = false;
-        up = (up || !(up || down))? true:false;
-        down = (down || !(up || down))? true:false;
+        down = (down || down === undefined);
         this.layout = {};
         if (up && this.parent) {
             if(cb(this.parent)){
