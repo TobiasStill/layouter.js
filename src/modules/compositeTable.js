@@ -5,22 +5,29 @@
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
 // AMD. Register as an anonymous module.
-        define('layouter/compositeTable', ['layouter', 'jQuery'], factory);
+        define('layouter/compositeTable', ['layouter'], factory);
     } else if (typeof exports === 'object') {
 // Node. Does not work with strict CommonJS, but
 // only CommonJS-like environments that support module.exports,
 // like Node.
-        module.exports = factory(require('jquery'), require('../core/layouter.js'));
+        module.exports = factory(require('../core/layouter.js'));
     } else {
 // Browser globals (root is window)
-        root.layouter = factory(root.jQuery, root.layouter);
+        root.layouter = factory(root.layouter);
     }
-}(this, function (jQuery, layouter) {
+}(this, function (layouter) {
     var exports = layouter,
+        $ = layouter.$,
         Layouter = layouter.Layouter,
         Node = layouter.Node;
-
+    
+    var templates = exports.templates = {};
+    var helpers = exports.helpers = {};
     var defaults = exports.defaults = {};
+    defaults.layouter = {};
+    var calculators = defaults.layouter.calculators = {};
+    var types = defaults.layouter.types = {};
+
 
     /**
      * The layouter options.
@@ -32,31 +39,12 @@
      * Contains all the calculator-functions for any node type and layout-property
      */
 
-    defaults.layouter = {};
-
-    var types = defaults.layouter.types = {};
-    types.table = function (node) {
-        return (node.$el.hasClass('layouter-table'));
-    };
-    types.row = function (node) {
-        return (node.$el.hasClass('layouter-row'));
-    };
-    types.compound = function (node) {
-        return (node.$el.hasClass('layouter-col') && node.$el.find('.layouter-row').length);
-    };
-    types.cropped = function (node) {
-        return (node.$el.hasClass('layouter-col') && node.$el.hasClass('layouter-cropped'));
-    };
-    types.col = function (node) {
-        return (node.$el.hasClass('layouter-col'));
-    };
 
     /**
      * define the calculators
      * for calculating the dimensions of a node in our layout
      */
-
-    var calculatorTemplate = {
+     templates.calculator = {
         width: {
             final: function () {
                 return undefined;
@@ -116,12 +104,11 @@
         }
     };
 
-
-    var calculators = defaults.layouter.calculators = {};
+    
     /**
      * the calculators
      */
-    var row = calculators.row = jQuery.extend(true, {}, calculatorTemplate);
+    var row = calculators.row = $.extend(true, {}, templates.calculator);
     /**
      *
      * @param {Node} node
@@ -243,7 +230,7 @@
     /**
      * Leaf column
      */
-    var col = calculators.col = jQuery.extend(true, {}, calculatorTemplate);
+    var col = calculators.col = $.extend(true, {}, templates.calculator);
     /**
      *
      * @param {Node} node
@@ -380,7 +367,7 @@
      * it's content.
      * Accordingly the required height always equals the desired height
      */
-    var cropped = calculators.cropped = jQuery.extend(true, {}, col);
+    var cropped = calculators.cropped = $.extend(true, {}, col);
 
     /**
      *
@@ -395,7 +382,7 @@
     /**
      * Calculator for compound cells, a rather complicated thing
      */
-    var compound = calculators.compound = jQuery.extend(true, {}, col);
+    var compound = calculators.compound = $.extend(true, {}, col);
 
     /**
      *
@@ -495,7 +482,7 @@
     /**
      * Calculator for the toplevel container
      */
-    var table = calculators.table = jQuery.extend(true, {}, compound);
+    var table = calculators.table = $.extend(true, {}, compound);
 
     /**
      *
@@ -574,7 +561,7 @@
     /**
      * Calculator for breaking columns
      */
-    var breaking = calculators.breaking = jQuery.extend(true, {}, calculatorTemplate);
+    var breaking = calculators.breaking = $.extend(true, {}, templates.calculator);
     /**
      *
      * @param {Node} node
@@ -640,7 +627,7 @@
     /**
      * Calculator for breaking columns
      */
-    var breakingCropped = calculators.breakingCropped = jQuery.extend(true, {}, breaking);
+    var breakingCropped = calculators.breakingCropped = $.extend(true, {}, breaking);
 
     /**
      *
@@ -654,9 +641,58 @@
     /**
      * Calculator for breaking columns
      */
-    var auto = calculators.auto = jQuery.extend(true, {}, calculatorTemplate);
+    var auto = calculators.auto = $.extend(true, {}, templates.calculator);
 
-    var helpers = exports.helpers = {};
+    templates.type = {
+        map: function (node) {
+            return false
+        },
+        calculator: function (node) {
+            var calculators = node.get('calculators'),
+                br = node.layouter.layout && node.layouter.layout.breakColumns,
+                t = node.getType();
+            if (br) t = 'auto';
+            return calculators[t];
+        }
+    };
+
+    types.table = $.extend(true, {}, templates.type);
+    types.table.map = function (node) {
+        return (node.$el.hasClass('layouter-table'));
+    };
+    types.row = $.extend(true, {}, templates.type);
+    ;
+    types.row.map = function (node) {
+        return (node.$el.hasClass('layouter-row'));
+    };
+    types.compound = $.extend(true, {}, templates.type);
+    ;
+    types.compound.map = function (node) {
+        return (node.$el.hasClass('layouter-col') && node.$el.find('.layouter-row').length);
+    };
+    types.cropped = {};
+    types.cropped.map = function (node) {
+        return (node.$el.hasClass('layouter-col') && node.$el.hasClass('layouter-cropped'));
+    };
+    types.cropped.calculator = function (node) {
+        var calculators = node.get('calculators'),
+            br = node.layouter.layout && node.layouter.layout.breakColumns,
+            t = node.getType();
+        if (br) t = 'breakingCropped';
+        return calculators[t];
+    };
+    types.col = {};
+    types.col.map = function (node) {
+        return (node.$el.hasClass('layouter-col'));
+    };
+    types.col.calculator = function (node) {
+        var calculators = node.get('calculators'),
+            br = node.layouter.layout && node.layouter.layout.breakColumns,
+            t = node.getType();
+        if (br) t = 'breaking';
+        return calculators[t];
+    };
+    
 
     /**
      * Return all nodes that have display
@@ -680,9 +716,9 @@
         var $clone = node.$el.clone(), r, p, w;
         $clone.css({
             visibility: 'hidden',
-            position:node.getPositioning() || 'static',
+            position: node.getPositioning() || 'static',
             width: node.getWidth('final', 'inner') || 'auto',
-            height:'auto'
+            height: 'auto'
         });
         p = node.parent ? node.parent.$el : document.body;
         $clone.appendTo(p);
@@ -719,7 +755,7 @@
         if (this.type !== undefined)
             return this.type;
         for (type in types) {
-            if (types.hasOwnProperty(type) && types[type](this)) {
+            if (types.hasOwnProperty(type) && types[type].map(this)) {
                 this.type = type;
                 return this.type;
             }
@@ -731,13 +767,8 @@
      * @returns {object}
      */
     Node.prototype.getCalculator = function () {
-        var calculators = this.get('calculators'),
-            br = this.layouter.layout && this.layouter.layout.breakColumns,
-            t = this.getType();
-        if (br && t === 'col') t = 'breaking';
-        else if (br && t === 'cropped') t = 'breakingCropped';
-        else if (br) t = 'auto';
-        return calculators[t];
+        var types = this.get('types');
+        return types[this.getType()].calculator(this);
     };
     /**
      * Get or calculate the width of a node
@@ -829,7 +860,7 @@
                 $a.add(n.parent.$el);
                 return ascendants(n.parent, $a);
             },
-            $a = ascendants(this, jQuery());
+            $a = ascendants(this, $());
         //check if neither the node nor any of it's ascendants has display:none
         return this.$el.css('display') !== 'none' && $a.css('display') !== 'none';
     };
@@ -843,9 +874,9 @@
      * @returns {jQuery|null}
      */
     parser.parse = function ($el) {
-        var $c = jQuery(), $d = $el.find('.layouter-row, .layouter-col'), p;
+        var $c = $(), $d = $el.find('.layouter-row, .layouter-col'), p;
         $d.each(function (i, el) {
-            p = jQuery(el).parent().closest('.layouter-table, .layouter-row, .layouter-col');
+            p = $(el).parent().closest('.layouter-table, .layouter-row, .layouter-col');
             if (p.get(0) === $el.get(0))
                 $c = $c.add(el);
         });
@@ -863,7 +894,7 @@
     var align = function (node, h, a) {
         var r, $el, $ct, s, t, an;
         $ct = (node.$el.contents());
-        $el = ($ct.is('div')) ? $ct : jQuery('div').append($ct).appendTo(node.$el);
+        $el = ($ct.is('div')) ? $ct : $('div').append($ct).appendTo(node.$el);
         r = node.getHeight('required', 'inner');
         s = h - r;
         t = (s > 0) ? s / 2 : 0;
@@ -910,7 +941,8 @@
         h = node.getHeight('final', 'inner') || 'auto';
         l = node.getPosition('left') || 'auto';
         p = node.getPositioning() || 'static';
-        a = typeof w === 'number' && typeof h === 'number' && typeof l === 'number' &&
+        a = typeof w === 'number' && typeof h === 'number' &&
+        typeof l === 'number' &&
         options.layout.animate;
         if (a) {
             a($el, w, h, l, p);
