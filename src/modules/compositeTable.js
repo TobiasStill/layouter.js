@@ -1,6 +1,30 @@
+/*
+ Copyright (c) 2014, Tobias Still <ts@tobiasstill.info>
+ All rights reserved.
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+ * Redistributions of source code must retain the above copyright notice, this
+ list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice,
+ this list of conditions and the following disclaimer in the documentation
+ and/or other materials provided with the distribution.
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ POSSIBILITY OF SUCH DAMAGE.
+ */
 /**
  * Created by Tobias Still on 30.10.2014.
- * @module layouter/compositeTable
  */
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
@@ -16,35 +40,135 @@
         root.layouter = factory(root.layouter);
     }
 }(this, function (layouter) {
+    /**
+     * @module layouter/compositeTable
+     * @version 0.0.0
+     */
     var exports = layouter,
         $ = layouter.$,
         Layouter = layouter.Layouter,
-        Node = layouter.Node;
-    
-    var templates = exports.templates = {};
-    var helpers = exports.helpers = {};
-    var defaults = exports.defaults = {};
-    defaults.layouter = {};
-    var calculators = defaults.layouter.calculators = {};
-    var types = defaults.layouter.types = {};
-
+        Node = layouter.Node,
+        helpers = layouter.helpers,
+        defaults = layouter.defaults,
+        mixins,
+        rendering,
+        calculators,
+        types,
+        parser;
+    /**
+     * Calculator callbacks take Nodes as arguments
+     * and return numerical layout properties
+     * @callback calculatorCallback
+     * @param {Node}
+     * @return {number}
+     */
+    /**
+     * Two-place calculater callbacks take Nodes and
+     * numerical properties as arguments
+     * @callback twoPlaceCalculatorCallback
+     * @param {number} x
+     * @param {Node} node
+     * @return {number}
+     */
+    /**
+     * @typedef {Object} lcWidth
+     * @property {calculatorCallback} final Calculates the final width of the node.
+     * The final width represents the outer width that the nodes element will assume
+     * when rendering the layout.
+     * @property {calculatorCallback} percent Calculates the final width of the node
+     * in percent.
+     * @property {calculatorCallback} factor Returns the proportional width factor
+     * of the nodes element, relative to the inner width of the parent nodes element
+     * (e.g.: 'half the width of the parent element' => factor = 0.5).
+     * @property {calculatorCallback} delta Returns the difference of the outer and inner
+     * widths of the nodes element.
+     * @property {twoPlaceCalculatorCallback} inner Substracts the outer margins and paddings
+     * of the nodes element from a given numerical value
+     * @property {twoPlaceCalculatorCallback} outer Increases a given numerical value by the
+     * the outer margins and paddings
+     * of the nodes element.
+     *
+     */
+    /**
+     * @typedef {Object} lcHeight
+     * @property {calculatorCallback} desired
+     * @property {calculatorCallback} required
+     * @property {calculatorCallback} balanced
+     * @property {calculatorCallback} final
+     * @property {calculatorCallback} factor
+     * @property {calculatorCallback} delta
+     * @property {calculatorCallback} inner
+     * @property {calculatorCallback} outer
+     */
 
     /**
-     * The layouter options.
-     * @typedef {Object} Layouter~layouterOptions
-     * @property {Layouter~parser} parser
-     * @property {Object.<string, Function>} types
-     * Maps jQuery Elements to node types
-     * @property {Object.<string, Object.<string, Function>>} calculators
-     * Contains all the calculator-functions for any node type and layout-property
+     * @typedef {Object} lcPosition
+     * @property {calculatorCallback} left
+     * @property {calculatorCallback} left_percent
+     * */
+
+    /**
+     * @typedef {Object} layoutCalculator
+     * @property {lcWidth} width
+     * @property {lcHeight} height
+     * @property {lcPosition} position
+     * @property {Function} positioning
      */
+
+    /**
+     * @typedef {Object} nodeType
+     * @property {Function} map
+     * @property {Function} calculator
+     */
+
+    /**
+     * Enhanced Layouter settings
+     * @typedef {object} compositeTableLayouterSettings
+     * @property {parser} parser
+     * @property {String} selector
+     * @property {renderingOptions} rendering
+     * @property {Function} onCreate
+     * @property {Object<nodeType>} types
+     * @property {Object<layoutCalculator>} calculators
+     */
+
+    /**
+     * Mixins and skeletons
+     * @type {{}}
+     */
+    exports.mixins = mixins = {};
+    /**
+     * Default rendering options
+     * @type {renderingOptions}
+     */
+    defaults.rendering = rendering = {};
+    /**
+     * Default layout calculators
+     * @type {Object<layoutCalculator>}
+     */
+    defaults.calculators = calculators = {};
+    /**
+     * Default node types
+     * @type {Object<nodeType>}
+     */
+    defaults.types = types = {};
+    /**
+     * Default node parser
+     * @type {nodeParser}
+     */
+    defaults.parser = parser = {};
 
 
     /**
      * define the calculators
      * for calculating the dimensions of a node in our layout
      */
-     templates.calculator = {
+
+    /**
+     * Calculator skeleton object. More a skeleton than a mixin
+     * @type {layoutCalculator}
+     * */
+    mixins.calculator = {
         width: {
             final: function () {
                 return undefined;
@@ -104,17 +228,17 @@
         }
     };
 
-    
+
     /**
      * the calculators
      */
-    var row = calculators.row = $.extend(true, {}, templates.calculator);
+    calculators.row = $.extend(true, {}, mixins.calculator);
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    row.width.final = function (node) {
+    calculators.row.width.final = function (node) {
         var p = node.parent;
         return p.getWidth('final', 'inner');
     };
@@ -123,7 +247,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    row.width.percent = function (node) {
+    calculators.row.width.percent = function (node) {
         return 100;
     };
     /**
@@ -131,7 +255,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    row.height.desired = function (node) {
+    calculators.row.height.desired = function (node) {
         //get dimensions of parent node
         var p = node.parent,
         //get factor
@@ -146,7 +270,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    row.height.required = function (node) {
+    calculators.row.height.required = function (node) {
         var c = node.childs,
         //to begin with, get the nodes desired height
             d = node.getHeight('desired'),
@@ -173,10 +297,9 @@
      * @param {Node} node
      * @returns {number}
      */
-    row.height.final = function (node) {
+    calculators.row.height.final = function (node) {
         var p = node.parent,
         //get factor from element configuration
-            conf = node.getConfig(),
             f = node.getHeight('factor'),
         //get the balanced inner height of the nodes parent col/table
         //multiplied by factor
@@ -191,13 +314,12 @@
      * @param {Node} node
      * @returns {number}
      */
-    row.height.factor = function (node) {
+    calculators.row.height.factor = function (node) {
         //get factor from element configuration
-        var conf = node.getConfig(), l = node.layouter && node.layouter.layout;
-        return (conf && conf.layouts && l.name && conf.layouts.hasOwnProperty(l.name) &&
-            conf.layouts[l.name].height) ||
+        var l = node.layouter.get('rendering.layout.name');
+        return (l && node.get('layouts.' + l + '.height')) ||
                 // OR derived from the number sibling rows
-            1 / displayed(node.parent.childs).length ||
+            1 / helpers.displayed(node.parent.childs).length ||
                 //OR 1
             1;
     };
@@ -206,7 +328,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    row.position.left = function (node) {
+    calculators.row.position.left = function (node) {
         return 0;
     };
 
@@ -215,7 +337,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    row.position.left_percent = function (node) {
+    calculators.row.position.left_percent = function (node) {
         return 0;
     };
 
@@ -224,19 +346,19 @@
      * @param {Node} node
      * @returns {string}
      */
-    row.positioning = function (node) {
+    calculators.row.positioning = function (node) {
         return 'relative';
     };
     /**
      * Leaf column
      */
-    var col = calculators.col = $.extend(true, {}, templates.calculator);
+    calculators.col = $.extend(true, {}, mixins.calculator);
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    col.width.final = function (node) {
+    calculators.col.width.final = function (node) {
         var p = node.parent,
         //get parent rows inner width
             w = p.getWidth('final', 'inner'),
@@ -250,7 +372,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    col.width.percent = function (node) {
+    calculators.col.width.percent = function (node) {
         var p = 100,
         //get factor
             f = node.getWidth('factor');
@@ -262,14 +384,12 @@
      * @param {Node} node
      * @returns {number}
      */
-    col.width.factor = function (node) {
-        var conf, f, l = node.layouter && node.layouter.layout;
+    calculators.col.width.factor = function (node) {
+        var conf, f, l = node.layouter.get('rendering.layout.name');
         //get factor from element configuration
-        conf = node.getConfig();
-        f = (conf && conf.layouts && l.name && conf.layouts.hasOwnProperty(l.name) &&
-        conf.layouts[l.name].width) ||
+        f = (l && node.get('layouts.' + l + '.width')) ||
             // OR derived from the number sibling rows
-        1 / displayed(node.parent.childs).length ||
+        1 / helpers.displayed(node.parent.childs).length ||
             //OR 1
         1;
         return f;
@@ -280,7 +400,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    col.height.desired = function (node) {
+    calculators.col.height.desired = function (node) {
         var p = node.parent;
         //the columns desired height equals the
         // desired inner height of the parent row
@@ -291,10 +411,10 @@
      * @param {Node} node
      * @returns {number}
      */
-    col.height.required = function (node) {
+    calculators.col.height.required = function (node) {
         //the columns required height equals
         // it's content's height
-        var r = (node.$el.is(':empty')) ? 0 : measure(node);
+        var r = (node.$el.is(':empty')) ? 0 : helpers.measure(node);
         return node.getHeight(r, 'outer');
     };
     /**
@@ -302,7 +422,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    col.height.final = function (node) {
+    calculators.col.height.final = function (node) {
         var p = node.parent;
         //the columns final height equals the
         // final inner height of the parent row
@@ -313,10 +433,10 @@
      * @param {Node} node
      * @returns {number}
      */
-    col.position.left = function (node) {
+    calculators.col.position.left = function (node) {
         var s, l, i;
         //get the columns displayed siblings
-        s = displayed(node.parent.childs);
+        s = helpers.displayed(node.parent.childs);
         l = 0;
         //loop thru all sibling columns
         for (i = 0; i < s.length; i++) {
@@ -334,10 +454,10 @@
      * @param {Node} node
      * @returns {number}
      */
-    col.position.left_percent = function (node) {
+    calculators.col.position.left_percent = function (node) {
         var s, l, i;
         //get the columns displayed siblings
-        s = displayed(node.parent.childs);
+        s = helpers.displayed(node.parent.childs);
         l = 0;
         //loop thru all sibling columns
         for (i = 0; i < s.length; i++) {
@@ -356,7 +476,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    col.positioning = function (node) {
+    calculators.col.positioning = function (node) {
         return 'absolute';
     };
 
@@ -367,14 +487,14 @@
      * it's content.
      * Accordingly the required height always equals the desired height
      */
-    var cropped = calculators.cropped = $.extend(true, {}, col);
+    calculators.cropped = $.extend(true, {}, calculators.col);
 
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    cropped.height.required = function (node) {
+    calculators.cropped.height.required = function (node) {
         return node.getHeight('desired');
     };
 
@@ -382,17 +502,17 @@
     /**
      * Calculator for compound cells, a rather complicated thing
      */
-    var compound = calculators.compound = $.extend(true, {}, col);
+    calculators.compound = $.extend(true, {}, calculators.col);
 
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    compound.height.required = function (node) {
+    calculators.compound.height.required = function (node) {
         var c, r, i, cr, cd;
         //get the columns displayed siblings
-        c = displayed(node.childs);
+        c = helpers.displayed(node.childs);
         r = node.getHeight('desired');
         //loop thru all sibling rows
         for (i = 0; i < c.length; i++) {
@@ -409,10 +529,10 @@
      * @param {Node} node
      * @returns {number}
      */
-    compound.height.balanced = function (node) {
+    calculators.compound.height.balanced = function (node) {
         var c, h, rxs, lxs, i, xs, r, rm, b, rf, f, n;
         //get the compound columns children rows
-        c = displayed(node.childs);
+        c = helpers.displayed(node.childs);
         // if there's only a single child row, that's really it
         if (c.length === 1)
             return node.getHeight('final');
@@ -475,22 +595,22 @@
      * @param {Node} node
      * @returns {string}
      */
-    compound.positioning = function (node) {
+    calculators.compound.positioning = function (node) {
         return 'absolute';
     };
 
     /**
      * Calculator for the toplevel container
      */
-    var table = calculators.table = $.extend(true, {}, compound);
+    calculators.table = $.extend(true, {}, calculators.compound);
 
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    table.width.final = function (node) {
-        var l = node.layouter && node.layouter.layout,
+    calculators.table.width.final = function (node) {
+        var l = node.layouter.get('rendering.layout'),
             w = l && l.width || node.$el.width();
         return node.getWidth(w, 'outer');
     };
@@ -500,14 +620,14 @@
      * @param {Node} node
      * @returns {number}
      */
-    table.height.desired = function (node) {
+    calculators.table.height.desired = function (node) {
         //get dimensions of parent node
-        var conf = node.getConfig(),
-            r, s, l = node.layouter && node.layouter.layout;
-        if (conf && conf.height) return node.getHeight(conf.height, 'outer');
+        var r, s, l = node.layouter.get('rendering.layout'),
+            c = (l) ? node.get('layouts.' + l.name) : false;
+        if (c && c.height) return node.getHeight(c.height, 'outer');
         if (l && l.height) return node.getHeight(l.height, 'outer');
-        r = (conf && conf.rowHeight) || (l && l.rowHeight);
-        s = displayed(node.childs).length;
+        r = (c && c.rowHeight) || (l && l.rowHeight);
+        s = helpers.displayed(node.childs).length;
         return node.getHeight(r * s, 'outer');
     };
 
@@ -516,7 +636,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    table.height.final = function (node) {
+    calculators.table.height.final = function (node) {
         var r, d;
         d = node.getHeight('desired');
         r = node.getHeight('required');
@@ -528,7 +648,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    table.height.inner = function (h, node) {
+    calculators.table.height.inner = function (h, node) {
         return h;
     };
     /**
@@ -536,7 +656,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    table.position.left = function (node) {
+    calculators.table.position.left = function (node) {
         return 0;
     };
 
@@ -545,7 +665,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    table.position.left_percent = function (node) {
+    calculators.table.position.left_percent = function (node) {
         return 0;
     };
 
@@ -554,23 +674,23 @@
      * @param {Node} node
      * @returns {string}
      */
-    table.positioning = function (node) {
+    calculators.table.positioning = function (node) {
         return 'static';
     };
 
     /**
      * Calculator for breaking columns
      */
-    var breaking = calculators.breaking = $.extend(true, {}, templates.calculator);
+    calculators.breaking = $.extend(true, {}, mixins.calculator);
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    breaking.height.required = function (node) {
+    calculators.breaking.height.required = function (node) {
         //the columns required height equals
         // it's content's height
-        var r = (node.$el.is(':empty')) ? 0 : measure(node);
+        var r = (node.$el.is(':empty')) ? 0 : helpers.measure(node);
         return node.getHeight(r, 'outer');
     };
     /**
@@ -578,11 +698,10 @@
      * @param {Node} node
      * @returns {number}
      */
-    breaking.height.desired = function (node) {
-        var r = node.getRoot(), conf = r.getConfig(),
-            l = node.layouter && node.layouter.layout,
-            c = (l && conf && conf.layouts && conf.layouts.hasOwnProperty(l.name)) ||
-                l;
+    calculators.breaking.height.desired = function (node) {
+        var r = node.getRoot(),
+            l = node.layouter.get('rendering.layout'),
+            c = (l && node.get('layouts.' + l.name)) || l;
         if (c.rowHeight)
             return c.rowHeight;
         if (c.height)
@@ -593,7 +712,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    breaking.height.final = function (node) {
+    calculators.breaking.height.final = function (node) {
         var r = node.getHeight('required'),
             d = node.getHeight('desired');
         //the columns final height should be at most
@@ -606,11 +725,10 @@
      * @param {Node} node
      * @returns {number}
      */
-    breaking.height.factor = function (node) {
-        var conf, f, l = node.layouter && node.layouter.layout;
+    calculators.breaking.height.factor = function (node) {
+        var conf, f, l = node.layouter.get('rendering.layout.name');
         //get factor from element configuration
-        conf = node.getConfig();
-        f = (conf.layouts && l.name && conf.layouts.hasOwnProperty(l.name) && conf.layouts[l.name].height) ||
+        f = (l && node.get('layouts.' + l + '.height')) ||
             //OR 1
         1;
         return f;
@@ -620,53 +738,56 @@
      * @param {Node} node
      * @returns {string}
      */
-    breaking.positioning = function (node) {
+    calculators.breaking.positioning = function (node) {
         return 'static';
     };
 
     /**
      * Calculator for breaking columns
      */
-    var breakingCropped = calculators.breakingCropped = $.extend(true, {}, breaking);
+    calculators.breakingCropped = $.extend(true, {}, calculators.breaking);
 
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    breakingCropped.height.final = function (node) {
+    calculators.breakingCropped.height.final = function (node) {
         return node.getHeight('desired');
     };
 
     /**
      * Calculator for breaking columns
      */
-    var auto = calculators.auto = $.extend(true, {}, templates.calculator);
+    calculators.auto = $.extend(true, {}, mixins.calculator);
 
-    templates.type = {
+
+    /**
+     *
+     * @type {nodeType}
+     */
+    mixins.type = {
         map: function (node) {
-            return false
+            return false;
         },
         calculator: function (node) {
-            var calculators = node.get('calculators'),
-                br = node.layouter.layout && node.layouter.layout.breakColumns,
+            var calculators = node.layouter.get('calculators'),
+                br = node.layouter.get('rendering.layout.breakColumns'),
                 t = node.getType();
             if (br) t = 'auto';
             return calculators[t];
         }
     };
 
-    types.table = $.extend(true, {}, templates.type);
+    types.table = $.extend(true, {}, mixins.type);
     types.table.map = function (node) {
         return (node.$el.hasClass('layouter-table'));
     };
-    types.row = $.extend(true, {}, templates.type);
-    ;
+    types.row = $.extend(true, {}, mixins.type);
     types.row.map = function (node) {
         return (node.$el.hasClass('layouter-row'));
     };
-    types.compound = $.extend(true, {}, templates.type);
-    ;
+    types.compound = $.extend(true, {}, mixins.type);
     types.compound.map = function (node) {
         return (node.$el.hasClass('layouter-col') && node.$el.find('.layouter-row').length);
     };
@@ -675,8 +796,8 @@
         return (node.$el.hasClass('layouter-col') && node.$el.hasClass('layouter-cropped'));
     };
     types.cropped.calculator = function (node) {
-        var calculators = node.get('calculators'),
-            br = node.layouter.layout && node.layouter.layout.breakColumns,
+        var calculators = node.layouter.get('calculators'),
+            br = node.layouter.get('rendering.layout.breakColumns'),
             t = node.getType();
         if (br) t = 'breakingCropped';
         return calculators[t];
@@ -686,20 +807,20 @@
         return (node.$el.hasClass('layouter-col'));
     };
     types.col.calculator = function (node) {
-        var calculators = node.get('calculators'),
-            br = node.layouter.layout && node.layouter.layout.breakColumns,
+        var calculators = node.layouter.get('calculators'),
+            br = node.layouter.get('rendering.layout.breakColumns'),
             t = node.getType();
         if (br) t = 'breaking';
         return calculators[t];
     };
-    
+
 
     /**
      * Return all nodes that have display
      * @param {Array.<Node>} nodes
      * @returns {Array}
      */
-    var displayed = helpers.displayed = function (nodes) {
+    helpers.displayed = function (nodes) {
         var d = [], i;
         for (i = 0; i < nodes.length; i++) {
             if (nodes[i].hasDisplay())
@@ -712,7 +833,7 @@
      * @param {Node} nodes
      * @returns {number}
      */
-    var measure = helpers.measure = function (node) {
+    helpers.measure = function (node) {
         var $clone = node.$el.clone(), r, p, w;
         $clone.css({
             visibility: 'hidden',
@@ -729,14 +850,6 @@
 
 
     /**
-     * Gets default layouter options.
-     * @returns {Layouter~layouterOptions}
-     */
-    Layouter.prototype.getDefaults = function (q) {
-        return (q === 'layouter' && defaults.layouter) ||
-            (q === 'rendering' && {renderer: defaults.renderer});
-    };
-    /**
      * Override this function to reset nodes
      * before rendering
      * @todo: do we need this here?
@@ -751,7 +864,7 @@
      * @returns {string}
      */
     Node.prototype.getType = function () {
-        var type, types = this.get('types');
+        var type, types = this.layouter.get('types');
         if (this.type !== undefined)
             return this.type;
         for (type in types) {
@@ -762,20 +875,19 @@
         }
     };
     /**
-     * Get the nodes type corresponding calculator map
+     * Get the nodes layout calculator
      * @method Node#getCalculator
-     * @returns {object}
+     * @returns {layoutCalculator}
      */
     Node.prototype.getCalculator = function () {
-        var types = this.get('types');
+        var types = this.layouter.get('types');
         return types[this.getType()].calculator(this);
     };
     /**
-     * Get or calculate the width of a node
-     * using various qualifiers
+     * Get the nodes width in various qualities.
      * @method Node#getWidth
-     * @param {string | number} q1 Qualifier (final|percent) or number
-     * @param {string} [q2] Optional qualifier (outer|inner)
+     * @param {string| number} q1 Possible values: "final", "percent".
+     * @param {string} [q2] Possible values: "outer", "inner".
      * @returns {*}
      */
     Node.prototype.getWidth = function (q1, q2) {
@@ -792,11 +904,10 @@
         return (q2 && calc.width[q2](n, this)) || n;
     };
     /**
-     * Get or calculate the height of a node
-     * using various qualifiers
+     * Get the nodes height in various qualities.
      * @method Node#getHeight
-     * @param {string | number} q1 Qualifier (desired|required|final|balanced) or number
-     * @param {string} [q2] Optional qualifier (outer|inner)
+     * @param {string | number} q1 Possible values: "desired", "required", "final", "balanced" OR number.
+     * @param {string} [q2] Possible values: "outer", "inner".
      * @returns {*}
      */
     Node.prototype.getHeight = function (q1, q2) {
@@ -813,30 +924,25 @@
         return (q2 && calc.height[q2](n, this)) || n;
     };
     /**
-     * Get or calculate the width of a node
-     * using various qualifiers
-     * @method Node#getWidth
-     * @param {string | number} q1 Qualifier (final|percent) or number
-     * @param {string} [q2] Optional qualifier (outer|inner)
+     * Get the nodes position
+     * @method Node#getPosition
+     * @param {string} q Possible values: "left", "left_percent".
      * @returns {*}
      */
-    Node.prototype.getPosition = function (q1) {
+    Node.prototype.getPosition = function (q) {
         var l = this.layout;
         if (l.position === undefined)
             l.position = {};
-        if (l.position[q1])
-            return l.position[q1];
+        if (l.position[q])
+            return l.position[q];
         var calc = this.getCalculator();
-        l.position[q1] = calc.position[q1](this);
-        return l.position[q1];
+        l.position[q] = calc.position[q](this);
+        return l.position[q];
     };
     /**
-     * Get or calculate the width of a node
-     * using various qualifiers
-     * @method Node#getWidth
-     * @param {string | number} q1 Qualifier (final|percent) or number
-     * @param {string} [q2] Optional qualifier (outer|inner)
-     * @returns {*}
+     * Get the nodes CSS positioning method
+     * @method Node#getPositioning
+     * @returns {string} Possible values: "absolute", "relative", "static".
      */
     Node.prototype.getPositioning = function () {
         var l = this.layout;
@@ -849,7 +955,7 @@
     /**
      * Checks if the nodes element has display
      * @method Node#hasDisplay
-     * @returns {bool}
+     * @returns {boolean}
      */
     Node.prototype.hasDisplay = function () {
         //get the jQuery DOM-elements of all the nodes ascendants
@@ -866,21 +972,25 @@
     };
 
     /**
-     * @var {parser} parser
-     */
-    var parser = defaults.layouter.parser = {};
-    /**
+     *
      * @param {jQuery} $el
      * @returns {jQuery|null}
      */
     parser.parse = function ($el) {
-        var $c = $(), $d = $el.find('.layouter-row, .layouter-col'), p;
+        var $c = $(),
+        //match cols and rows dom elements
+            $d = $el.find('.layouter-row, .layouter-col'), p;
+        //for each matched col or row
         $d.each(function (i, el) {
+            //find parent
             p = $(el).parent().closest('.layouter-table, .layouter-row, .layouter-col');
+            //if current element is direct descendant (not in DOM terms but in Layouter/Node terms)
+            //add it to the collection
             if (p.get(0) === $el.get(0))
                 $c = $c.add(el);
         });
-        return $c || null;
+        //return collection if not empty
+        return ($c.length && $c) || null;
     };
 
     /**
@@ -891,7 +1001,7 @@
      * @returns {*}
      */
 
-    var align = function (node, h, a) {
+    rendering.align = function (node, h, a) {
         var r, $el, $ct, s, t, an;
         $ct = (node.$el.contents());
         $el = ($ct.is('div')) ? $ct : $('div').append($ct).appendTo(node.$el);
@@ -917,7 +1027,7 @@
      * @param p
      * @returns {{resolved: boolean}}
      */
-    var apply = function ($el, w, h, l, p) {
+    rendering.apply = function ($el, w, h, l, p) {
         $el.width(w);
         $el.height(h);
         $el.css('position', p);
@@ -925,39 +1035,36 @@
         return {resolved: true};
     };
 
-    /**
-     * @var {renderer} renderer
-     */
-    var renderer = defaults.renderer = {};
 
     /**
      * Rendering
      * @param {Node} node
      * @param {renderingOptions} options
      */
-    renderer.render = function (node, options) {
-        var $el = node.$el, a, w, h, l, i, c, p;
+    rendering.render = function (node, options) {
+        var $el = node.$el, an, a, w, h, l, i, c, p;
+        //get layout properties
         w = node.getWidth('final', 'inner') || 'auto';
         h = node.getHeight('final', 'inner') || 'auto';
-        l = node.getPosition('left') || 'auto';
+        l = node.getPosition('left') || 0;
         p = node.getPositioning() || 'static';
-        a = typeof w === 'number' && typeof h === 'number' &&
-        typeof l === 'number' &&
-        options.layout.animate;
-        if (a) {
-            a($el, w, h, l, p);
-        }
-        else {
-            apply($el, w, h, l, p);
-        }
+        //animate layout? (only possible with numeric values for width and height)
+        an = typeof w === 'number' && typeof h ===  'number' &&
+        helpers.deepGet(options, 'layout.animate');
+        a = (an)? an : rendering.apply;
+        //apply layout
+        a($el, w, h, l, p);
+        //vertical alignment
         if (node.$el.hasClass('layouter-align')) {
-            align(node, h, a);
+            rendering.align(node, h, an);
         }
+        //render childs
         for (i = 0; i < node.childs.length; i++) {
             c = node.childs[i];
-            renderer.render(c, options);
+            rendering.render(c, options);
         }
     };
+
 
     return exports;
 }));
