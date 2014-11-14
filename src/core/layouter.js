@@ -1,6 +1,30 @@
+/*
+ Copyright (c) 2014, Tobias Still <ts@tobiasstill.info>
+ All rights reserved.
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+ * Redistributions of source code must retain the above copyright notice, this
+ list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice,
+ this list of conditions and the following disclaimer in the documentation
+ and/or other materials provided with the distribution.
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ POSSIBILITY OF SUCH DAMAGE.
+ */
 /**
  * Created by Tobias Still on 29.10.2014.
- * @module layouter
  */
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
@@ -16,41 +40,70 @@
         root.layouter = factory(root.jQuery);
     }
 }(this, function (jQuery) {
-    var exports = {}, Layouter, Node, $ = jQuery;
+    /**
+     * @module layouter
+     * @type {{}}
+     */
+    var exports = {},
+        Layouter,
+        Node,
+        helpers,
+        defaults,
+        $ = jQuery;
+
     exports.$ = $;
     exports.version = '0.0.0';
+    /**
+     * Default layouter settings
+     * @type {layouterSettings}
+     */
+    exports.defaults = defaults = {};
 
     /**
-     * The parser
-     * @typedef {object} Layouter~parser
-     * @property {Function} parse
+     * Helper functions
+     * @type {Object<Function>}
      */
+    exports.helpers = helpers = {};
+
     /**
-     * The layouter options.
-     * @typedef {Object} Layouter~layouterOptions
-     * @property {Layouter~parser} parser
+     *
+     * @type {Function}
      */
+    /*
+     courtesy qiao:
+     http://stackoverflow.com/questions/8817394/javascript-get-deep-value-from-object-by-passing-path-to-it-as-string
+     */
+    helpers.deepGet = function (obj, path) {
+        var paths = path.split('.'), current = obj, i;
+
+        for (i = 0; i < paths.length; ++i) {
+            if (current[paths[i]] === undefined) {
+                return undefined;
+            } else {
+                current = current[paths[i]];
+            }
+        }
+        return current;
+    };
     /**
-     * @typedef {Object} Layouter~layoutConfiguration
-     * @property {string} name
-     * @property {number} height
-     * @property {number} rowHeight
-     * @property {Function} animate
-     * @property {boolean} breakColumns
+     *
+     * @type {Function}
      */
-    /**
-     * The renderer
-     * @typedef {object} renderer
-     * @property {Function} render
-     * @property {Function} before
-     * @property {Function} after
-     */
-    /**
-     * The rendering options.
-     * @typedef {Object} Layouter~renderingOptions
-     * @property {Layouter~layoutConfiguration} layout - Layout options.
-     * @property {renderer} renderer - The renderer.
-     */
+    helpers.deepSet = function (obj, path, value) {
+        var paths = path.split('.'), current = obj, i;
+
+        for (i = 0; i < paths.length; ++i) {
+            //end of path?
+            if (i + 1 == path.length)
+                current[paths[i]] = value;
+            //undefined?
+            else if (current[paths[i]] === undefined) {
+                current[paths[i]] = {};
+            }
+            current = current[paths[i]];
+        }
+        return obj;
+    };
     /**
      * @class Node
      * @param {jQuery} $el
@@ -79,13 +132,14 @@
         this.layout = {};
     };
     /**
-     * @method Node#getConfig
-     * @returns {object}
+     * Get configuration values from html5 data attribute
+     * @method Node#get
+     * @param {String} path The configuration path (e.g.:'foo.bar.baz')
+     * @returns {*}
      */
-    Node.prototype.getConfig = function () {
+    Node.prototype.get = function (path) {
         var j = this.$el.data('layouter-config');
-        //if (j) j = jQuery.parseJSON(j);
-        return j;
+        return (j)? helpers.deepGet(j, path) : undefined;
     };
     /**
      * Attach child nodes
@@ -114,30 +168,25 @@
     /**
      * Renders the node and its childs
      * @method Node#render
-     * @param {renderingOptions} options Must have property 'renderer' with method 'render'
+     * @param {renderingOptions} [options]
      */
     Node.prototype.render = function (options) {
-        var cb = options.renderer.render;
-        cb(this, options);
+        if (!options || !options.render)
+        //get rendering options
+            options = (options && options.rendering) ||
+            this.layouter.get('rendering');
+        //execute rendering callback
+        options.render(this, options);
+        //render childs
         for (var i = 0; i < this.childs.length; i++) {
-            cb(this.childs[i], options);
+            options.render(this.childs[i], options);
         }
     };
     /**
-     * Gets layouter option
-     * @method Node#get
-     * @param {string} option The name of the layouter option to return
-     * @returns {*}
-     * */
-    Node.prototype.get = function (option) {
-        return this.layouter.get(option);
-    };
-
-    /**
      * Reset all layout properties
      * @method Node#reset
-     * @param {boolean} up
-     * @param {boolean} down
+     * @param {boolean} [up]
+     * @param {boolean} [down]
      */
     Node.prototype.reset = function (up, down) {
         var i;
@@ -145,35 +194,43 @@
         if (up && this.parent) {
             this.parent.reset(true);
         }
-        if (down && this.childs)
+        if ((down || down === undefined) && this.childs)
             for (i = 0; i < this.childs.length; i++) {
                 this.childs[i].reset(false, true);
             }
     };
     /**
+     * Examine a node by whatever criteria and
+     * return true if it's a match or false otherwise
+     * @callback nodeMatcherCallback
+     * @param {Node} node
+     * @returns {boolean}
+     */
+    /**
+     * Recursively find nodes
      * @method Node#find
-     * Recursively find nodes matching criteria evaluated by a callback function
-     * @param {Function} cb Callback to match nodes
+     * @param {nodeMatcherCallback} match Match nodes
      * @param {boolean} [deep] If true, perform deep search all the way
-     * down or up the hierarchy and return all matches,
-     * if false the search will only return the closest matches in the
-     * hierarchy upwards or downwards or both
+     * up or down the hierarchy and return all matches.
+     * If false the search will only return the closest matches in the
+     * hierarchy (upwards or downwards or both).
      * @param {boolean} [up] If true, search upwards the hierarchy
      * @param {boolean} [down] If true OR undefined, search downwards the hierarchy
+     * @return Array<Node>
      */
-    Node.prototype.find = function (cb, deep, up, down) {
+    Node.prototype.find = function (match, deep, up, down) {
         var i, j, r = [], rr = [], m = false;
         down = (down || down === undefined);
         this.layout = {};
         if (up && this.parent) {
-            if(cb(this.parent)){
+            if (match(this.parent)) {
                 r.push(this.parent);
                 m = true;
             }
-            if(deep || !m){
-                rr = this.parent.find(cb, deep, up, down);
-                for(j = 0; j < rr.length; j++){
-                    r.push.(rr[j]);
+            if (deep || !m) {
+                rr = this.parent.find(match, deep, up, down);
+                for (j = 0; j < rr.length; j++) {
+                    r.push(rr[j]);
                 }
             }
         }
@@ -181,51 +238,106 @@
         rr = [];
         if (down && this.childs.length)
             for (i = 0; i < this.childs.length; i++) {
-                if(cb(this.childs[i])){
+                if (match(this.childs[i])) {
                     r.push(this.childs[i]);
-                    m = true
+                    m = true;
                 }
-                if(deep || !m){
-                    rr = this.childs[i].find(cb, deep, up, down);
-                    for(j = 0; j < rr.length; j++){
-                        r.push.(rr[j]);
+                if (deep || !m) {
+                    rr = this.childs[i].find(match, deep, up, down);
+                    for (j = 0; j < rr.length; j++) {
+                        r.push(rr[j]);
                     }
                 }
             }
         return r;
     };
-
     /**
+     * The node parsers callback function returns a jQuery collection
+     * from a jQuery element/collection.
+     * The elements in the returned collection represent layouter nodes.
+     * @callback nodeParserCallback
+     * @param {jQuery} $$
+     * @return {jQuery}
+     */
+    /**
+     * Node parser
+     * @typedef {object} nodeParser
+     * @property {nodeParserCallback} parse
+     */
+    /**
+     * Callback to be executed on a Node instance right after it was created
+     * @typedef {Function} onCreateCallback
+     * @param {Node} node
+     */
+    /**
+     * The layout options
+     * @typedef {Object} layoutOptions
+     * @property {string} name
+     * @property {number} height
+     * @property {number} rowHeight
+     * @property {Function} animate
+     * @property {boolean} breakColumns
+     */
+    /**
+     * The rendering options
+     * @typedef {object} renderingOptions
+     * @property {Function} render
+     * @property {Function} before
+     * @property {Function} after
+     * @property {layoutOptions} layout - Layout options.
+     */
+    /**
+     * Layouter settings
+     * @typedef {object} layouterSettings
+     * @property {nodeParser} parser The custom node parser
+     * @property {String} selector jQuery selector expression instead of node parser
+     * @property {renderingOptions} rendering
+     * @property {onCreateCallback} onCreate
+     */
+    /**
+     * The Layouter wraps the node tree,
+     * manages global settings,
+     * triggers rendering.
      * @class Layouter
-     * @param {$ | HTMLElement | string} context The container, DOM element or HTML
-     * @param {object} options
+     * @param {$ | HTMLElement | string} context The HTML context - jQuery, DOM element or string(HTML)
+     * @param {layouterSettings} options
+     *
      * */
     exports.Layouter = Layouter = function (context, options) {
-        this.options = $.extend(options, this.getDefaults('layouter'));
+        /**
+         * @member Layouter#settings
+         * @type layouterSettings
+         */
+        this.settings = $.extend(exports.defaults, options);
+        /**
+         * @member Layouter#node
+         * @type {Node}
+         */
         this.node = this.createNode($(context));
     };
+
     /**
-     * Gets default layouter options.
-     * To be overridden by modules
-     * @method Layouter#getDefaults
-     * @param {string} q ('layouter'|'rendering')
-     * @returns {*}
-     * */
-    Layouter.prototype.getDefaults = function (q) {
-        return {};
-    };
-    /**
-     * Gets layouter option
+     * Get layouter setting
      * @method Layouter#get
-     * @param {string} option The name of the layouter option to return
+     * @param {string} path The setting's path (e.g.: 'foo.baz.bar')
      * @returns {*}
      * */
-    Layouter.prototype.get = function (option) {
-        return this.options && this.options[option];
+    Layouter.prototype.get = function (path) {
+        return this.settings && helpers.deepGet(this.settings, path);
     };
     /**
-     * Parses a jQuery-element by the provided parser callback function
-     * and recursively creates a node its child nodes
+     * Set layouter settings
+     * @method Layouter#set
+     * @param {string} path The setting's path (e.g.: 'foo.baz.bar')
+     * @param {*} value The value to be set
+     * */
+    Layouter.prototype.set = function (path, value) {
+        this.settings = helpers.deepSet(this.settings, path, value);
+    };
+    /**
+     * Creates a node (and it's child nodes) from the provided jQuery element,
+     * using the node parser or selector expression
+     * stored in layouter settings
      * @method Layouter#createNode
      * @param $el
      * @returns {Node}
@@ -234,37 +346,43 @@
         var self = this, n = new Node($el, this), cs, $cs,
             p = this.get('parser'), s = this.get('selector');
         n.$el.data('layouter-node', n);
-        //use provided parser
+        //use provided parser to find child nodes
         if (p) {
             cs = p.parse(n.$el);
         }
-        //use a jQuery selector expression
+        //use a jQuery selector expression to find child nodes
         else if (s) {
             cs = n.$el.childs(s);
         }
-        $cs = (typeof cs == 'jQuery') ? cs : $(cs);
+        //make childs jQuery
+        $cs = (cs instanceof $) ? cs : $(cs);
+        //for each child
         $cs.each(function (i, c) {
+            //create child node
             var cn = self.createNode($(c));
+            //set parent
             cn.parent = n;
+            //attach
             n.childs[i] = cn;
         });
+        //execute callback hooks
+        if (this.get('onCreate')) this.get('onCreate')(n);
         return n;
     };
 
-    Layouter.prototype.before = function () {
-    };
-    Layouter.prototype.after = function () {
-    };
     /**
      * @method Layouter#render
-     * @param {Layouter~renderingOptions} options
+     * @param {renderingOptions} [options]
      */
     Layouter.prototype.render = function (options) {
-        options = $.extend(options, this.getDefaults('rendering'));
-        this.layout = options && options.layout;
-        this.before();
-        this.node.render(options);
-        this.after();
+        var b = (this.get('rendering')) ?
+                this.get('rendering') : exports.defaults.rendering,
+            s = (options) ? $.extend(b, options) : b;
+        if (s !== b) this.set('rendering', s);
+        if (s && s.before) s.before();
+        this.node.reset();
+        this.node.render(s);
+        if(s && s.after) s.after();
     };
     return exports;
 }));
