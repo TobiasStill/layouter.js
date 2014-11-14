@@ -130,6 +130,8 @@
          *
          */
         this.layout = {};
+        this.parse();
+        this.$el.data('layouter-node', this);
     };
     /**
      * Get configuration values from html5 data attribute
@@ -140,6 +142,42 @@
     Node.prototype.get = function (path) {
         var j = this.$el.data('layouter-config');
         return (j)? helpers.deepGet(j, path) : undefined;
+    };
+    /**
+     * Parse $el and append child nodes
+     * @method Node#parse
+     *
+     */
+    Node.prototype.parse = function () {
+        var self = this, cs, $cs,
+            cb =  this.layouter.get('onCreate'),
+            p = this.layouter.get('parser'),
+            s = this.layouter.get('selector');
+        //unset childs
+        this.childs = [];
+        //use provided parser to find child nodes
+        if (p) {
+            cs = p.parse(this.$el);
+        }
+        //OR use a jQuery selector expression to find child nodes
+        else if (s) {
+            cs = this.$el.childs(s);
+        }
+        //make childs jQuery
+        $cs = (cs instanceof $) ? cs : $(cs);
+        //for each child
+        $cs.each(function (i, c) {
+            //create child node
+            var cn = new Node($(c), self.layouter);
+            //execute callback hook
+            if (cb) cb(cn);
+            //set parent
+            cn.parent = self;
+            //attach
+            self.childs[i] = cn;
+            //parse child
+            cn.parse();
+        });
     };
     /**
      * Attach child nodes
@@ -157,12 +195,7 @@
      * @returns {Node}
      */
     Node.prototype.getRoot = function () {
-        var r = function (n) {
-            if (n.parent === undefined)
-                return n;
-            return n.parent.getRoot();
-        }(this);
-        return r;
+        return this.layouter.root;
     };
 
     /**
@@ -310,10 +343,10 @@
          */
         this.settings = $.extend(exports.defaults, options);
         /**
-         * @member Layouter#node
+         * @member Layouter#root
          * @type {Node}
          */
-        this.node = this.createNode($(context));
+        this.root = new Node($(context), this);
     };
 
     /**
@@ -334,41 +367,6 @@
     Layouter.prototype.set = function (path, value) {
         this.settings = helpers.deepSet(this.settings, path, value);
     };
-    /**
-     * Creates a node (and it's child nodes) from the provided jQuery element,
-     * using the node parser or selector expression
-     * stored in layouter settings
-     * @method Layouter#createNode
-     * @param $el
-     * @returns {Node}
-     */
-    Layouter.prototype.createNode = function ($el) {
-        var self = this, n = new Node($el, this), cs, $cs,
-            p = this.get('parser'), s = this.get('selector');
-        n.$el.data('layouter-node', n);
-        //use provided parser to find child nodes
-        if (p) {
-            cs = p.parse(n.$el);
-        }
-        //use a jQuery selector expression to find child nodes
-        else if (s) {
-            cs = n.$el.childs(s);
-        }
-        //make childs jQuery
-        $cs = (cs instanceof $) ? cs : $(cs);
-        //for each child
-        $cs.each(function (i, c) {
-            //create child node
-            var cn = self.createNode($(c));
-            //set parent
-            cn.parent = n;
-            //attach
-            n.childs[i] = cn;
-        });
-        //execute callback hooks
-        if (this.get('onCreate')) this.get('onCreate')(n);
-        return n;
-    };
 
     /**
      * @method Layouter#render
@@ -380,8 +378,8 @@
             s = (options) ? $.extend(b, options) : b;
         if (s !== b) this.set('rendering', s);
         if (s && s.before) s.before();
-        this.node.reset();
-        this.node.render(s);
+        this.root.reset();
+        this.root.render(s);
         if(s && s.after) s.after();
     };
     return exports;
