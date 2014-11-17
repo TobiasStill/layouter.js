@@ -104,6 +104,17 @@
         }
         return obj;
     };
+
+    helpers.guid = function () {
+        function s4() {
+            return Math.floor((1 + Math.random()) * 0x10000)
+                .toString(16)
+                .substring(1);
+        }
+
+        return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+            s4() + '-' + s4() + s4() + s4();
+    };
     /**
      * @class Node
      * @param {jQuery} $el
@@ -130,18 +141,30 @@
          *
          */
         this.layout = {};
+        this.uid = helpers.guid();
         this.parse();
         this.$el.data('layouter-node', this);
     };
     /**
-     * Get configuration values from html5 data attribute
+     * Get values from html5 data
      * @method Node#get
      * @param {String} path The configuration path (e.g.:'foo.bar.baz')
      * @returns {*}
      */
     Node.prototype.get = function (path) {
-        var j = this.$el.data('layouter-config');
-        return (j)? helpers.deepGet(j, path) : undefined;
+        var d = this.$el.data('layouter-config');
+        return (d) ? helpers.deepGet(d, path) : undefined;
+    };
+    /**
+     * Set node html5 data
+     * @method Node#set
+     * @param {string} path The path (e.g.: 'foo.baz.bar')
+     * @param {*} value The value to be set
+     * */
+    Node.prototype.set = function (path, value) {
+        var d = this.$el.data('layouter-config');
+        d = helpers.deepSet(d, path, value);
+        this.$el.data('layouter-config', d);
     };
     /**
      * Parse $el and append child nodes
@@ -150,7 +173,7 @@
      */
     Node.prototype.parse = function () {
         var self = this, cs, $cs,
-            cb =  this.layouter.get('onCreate'),
+            cb = this.layouter.get('onCreate'),
             p = this.layouter.get('parser'),
             s = this.layouter.get('selector');
         //unset childs
@@ -175,8 +198,6 @@
             cn.parent = self;
             //attach
             self.childs[i] = cn;
-            //parse child
-            cn.parse();
         });
     };
     /**
@@ -285,6 +306,38 @@
         return r;
     };
     /**
+     * @method Node#load Loade HTML content via ajax
+     * @param {function} [done]
+     * @returns {jqXHR} Returns jQuery XML request object
+     */
+    Node.prototype.load = function (done) {
+        var req, self = this,
+            url = this.get('url');
+        done = (done) ? done : function (html) {
+            //unset url to prevent loading multiple times
+            self.set('url', undefined);
+            //append loaded html
+            self.$el.append($(html));
+            //parse node
+            self.parse();
+            //re-render the whole layout
+            self.layouter.render();
+        };
+        if (!url)
+            return false;
+        req = $.ajax(url, {
+            accepts: "text/html",
+            type: "GET",
+            dataType: "html"
+        });
+        req.done(done);
+        req.fail(function (e) {
+            // u no work?
+            console.log("Node#load threw ajax error: ", e);
+        });
+        return req;
+    };
+    /**
      * The node parsers callback function returns a jQuery collection
      * from a jQuery element/collection.
      * The elements in the returned collection represent layouter nodes.
@@ -380,7 +433,7 @@
         if (s && s.before) s.before();
         this.root.reset();
         this.root.render(s);
-        if(s && s.after) s.after();
+        if (s && s.after) s.after();
     };
     return exports;
 }));
