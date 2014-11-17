@@ -171,13 +171,13 @@
         handheld = true;
     }
     //instantiate layouter
-    aLayouter = new layouter.Layouter($('#wrapper'));
+    aLayouter = new layouter.Layouter($('#wrapper'), {parser: layouter.parser});
 
     /*layouts*/
     mobile.name = 'mobile';
     mobile.breakColumns = true;
     large.name = 'large';
-    //animation callback
+    //animation
     mobile.animate = large.animate = function ($el, w, h, l, p) {
         return $el.css('position', p).animate({'width': w, 'height': h, 'left': l}, 500).promise();
     };

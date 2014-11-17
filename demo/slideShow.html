@@ -21,6 +21,7 @@
     <script src="vendor/jquery.debouncedresize.js"></script>
     <script src="../src/core/layouter.js"></script>
     <script src="../src/modules/compositeTable.js"></script>
+    <script src="../src/modules/slideShowTable.js"></script>
 
     <style>
         body {
@@ -74,6 +75,22 @@
             }
 
         }
+        .next, .prev{
+            display:block;
+            width:1em;
+            height:50px;
+            font-size:50px;
+            position:absolute;
+            top:50%;
+            margin-top:-25px;
+            text-decoration: none;
+        }
+        .next{
+            right:0;
+        }
+        .prev{
+            left:0;
+        }
     </style>
 </head>
 <body>
@@ -93,13 +110,35 @@
                 </div>
             </div>
             <div class="layouter-row" data-layouter-config='{"layouts":{"large":{"height":0.5}}}'>
-                <div class="layouter-col layouter-align red leaf">
-                    <div>
-                        Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
-                        Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque
-                        penatibus et magnis dis parturient montes, nascetur ridiculus mus.
-                        Donec quam felis.
+                <div class="layouter-col layouter-slideshow">
+                    <div class="layouter-row layouter-slides">
+                        <div class="layouter-col layouter-slide layouter-align red leaf">
+                            <div>
+                                Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
+                                Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque
+                                penatibus et magnis dis parturient montes, nascetur ridiculus mus.
+                                Donec quam felis.
 
+                            </div>
+                        </div>
+                        <div class="layouter-col layouter-slide layouter-align yellow leaf">
+                            <div>
+                                Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
+                                Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque
+                                penatibus et magnis dis parturient montes, nascetur ridiculus mus.
+                                Donec quam felis.
+
+                            </div>
+                        </div>
+                        <div class="layouter-col layouter-slide layouter-align blue leaf">
+                            <div>
+                                Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
+                                Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque
+                                penatibus et magnis dis parturient montes, nascetur ridiculus mus.
+                                Donec quam felis.
+
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
