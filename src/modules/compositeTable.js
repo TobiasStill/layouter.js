@@ -678,29 +678,23 @@
         return 'static';
     };
 
-    /**
-     * Calculator for breaking columns
-     */
-    calculators.breaking = $.extend(true, {}, mixins.calculator);
+    mixins.breaking = {height:{}, width:{}}
+
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    calculators.breaking.height.required = function (node) {
-        //the columns required height equals
-        // it's content's height
-        var r = (node.$el.is(':empty')) ? 0 : helpers.measure(node);
-        return node.getHeight(r, 'outer');
+    mixins.breaking.width.percent = function (node) {
+        return 100;
     };
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    calculators.breaking.height.desired = function (node) {
-        var r = node.getRoot(),
-            l = node.layouter.get('rendering.layout'),
+    mixins.breaking.height.desired = function (node) {
+        var l = node.layouter.get('rendering.layout'),
             c = (l && node.get('layouts.' + l.name)) || l;
         if (c.rowHeight)
             return c.rowHeight;
@@ -712,7 +706,7 @@
      * @param {Node} node
      * @returns {number}
      */
-    calculators.breaking.height.final = function (node) {
+    mixins.breaking.height.final = function (node) {
         var r = node.getHeight('required'),
             d = node.getHeight('desired');
         //the columns final height should be at most
@@ -723,9 +717,40 @@
     /**
      *
      * @param {Node} node
+     * @returns {string}
+     */
+    mixins.breaking.positioning = function (node) {
+        return 'relative';
+    };
+    /**
+     * Calculator for breaking columns
+     */
+    calculators.breakingCol = $.extend(true, {}, mixins.calculator, mixins.breaking);
+    /**
+     *
+     * @param {Node} node
      * @returns {number}
      */
-    calculators.breaking.height.factor = function (node) {
+    calculators.breakingCol.width.final = function (node) {
+        //return null;
+    };
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    calculators.breakingCol.height.required = function (node) {
+        //the columns required height equals
+        // it's content's height
+        var r = (node.$el.is(':empty')) ? 0 : helpers.measure(node);
+        return node.getHeight(r, 'outer');
+    };
+    /**
+     *
+     * @param {Node} node
+     * @returns {number}
+     */
+    calculators.breakingCol.height.factor = function (node) {
         var conf, f, l = node.layouter.get('rendering.layout.name');
         //get factor from element configuration
         f = (l && node.get('layouts.' + l + '.height')) ||
@@ -733,19 +758,11 @@
         1;
         return f;
     };
-    /**
-     *
-     * @param {Node} node
-     * @returns {string}
-     */
-    calculators.breaking.positioning = function (node) {
-        return 'static';
-    };
 
     /**
      * Calculator for breaking columns
      */
-    calculators.breakingCropped = $.extend(true, {}, calculators.breaking);
+    calculators.breakingCropped = $.extend(true, {}, calculators.breakingCol);
 
     /**
      *
@@ -810,7 +827,7 @@
         var calculators = node.layouter.get('calculators'),
             br = node.layouter.get('rendering.layout.breakColumns'),
             t = node.getType();
-        if (br) t = 'breaking';
+        if (br) t = 'breakingCol';
         return calculators[t];
     };
 
