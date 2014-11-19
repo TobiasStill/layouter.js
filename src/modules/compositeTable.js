@@ -93,7 +93,7 @@
      * @typedef {Object} lcHeight
      * @property {calculatorCallback} desired
      * @property {calculatorCallback} required
-     * @property {calculatorCallback} balanced
+     * @property {calculatorCallback} normalized
      * @property {calculatorCallback} final
      * @property {calculatorCallback} factor
      * @property {calculatorCallback} delta
@@ -196,7 +196,7 @@
             required: function () {
                 return undefined;
             },
-            balanced: function () {
+            normalized: function () {
                 return undefined;
             },
             final: function () {
@@ -271,26 +271,24 @@
      * @returns {number}
      */
     calculators.row.height.required = function (node) {
-        var c = node.childs,
+        var c = helpers.displayed(node.childs),
         //to begin with, get the nodes desired height
-            d = node.getHeight('desired'),
+            d = node.getHeight('desired', 'inner'),
         //and assume optimistically that the node
         // will not require more height than desired
-            r = d,
-            i,
-            cr;
+            r = d, i, cr;
         //now we loop thru all childs
         for (i = 0; i < c.length; i++) {
-            //get the child's required height
+            //get the child columns required height
             cr = c[i].getHeight('required');
-            //if the child's required height exceeds
-            // the inner height of the node based on our
-            // expectations so far, increase it accordingly
-            if (cr > node.getHeight(r, 'inner'))
+            //if the columns required height exceeds
+            // the desired inner height of the row based on our
+            // expectations so far, increase the required height accordingly
+            if (cr > r)
                 r = cr;
         }
         //return the result
-        return r;
+        return node.getHeight(r, 'outer');
     };
     /**
      *
@@ -301,16 +299,16 @@
         var p = node.parent,
         //get factor from element configuration
             f = node.getHeight('factor'),
-        //get the balanced inner height of the nodes parent col/table
+        //get the normalized inner height of the nodes parent col/table
         //multiplied by factor
-            b = p.getHeight('balanced', 'inner') * f,
+            b = p.getHeight('normalized', 'inner') * f,
         //get the required height
-            r = node.getHeight('required', 'outer');
-        //return the balanced height or the required height if larger
+            r = node.getHeight('required');
+        //return the normalized height or the required height if larger
         return (r > b) ? r : b;
     };
     /**
-     *
+     * Get the proportional factor (coefficient) of the rows height
      * @param {Node} node
      * @returns {number}
      */
@@ -380,12 +378,12 @@
         return p * f;
     };
     /**
-     *
+     * Get the proportional factor (coefficient) of the columns width
      * @param {Node} node
      * @returns {number}
      */
     calculators.col.width.factor = function (node) {
-        var conf, f, l = node.layouter.get('rendering.layout.name');
+        var f, l = node.layouter.get('rendering.layout.name');
         //get factor from element configuration
         f = (l && node.get('layouts.' + l + '.width')) ||
             // OR derived from the number sibling rows
@@ -510,84 +508,73 @@
      * @returns {number}
      */
     calculators.compound.height.required = function (node) {
-        var c, r, i, cr, cd;
-        //get the columns displayed siblings
+        var c, r, i, x;
+        //get all displayed child rows
         c = helpers.displayed(node.childs);
-        r = node.getHeight('desired');
-        //loop thru all sibling rows
+        //get the compounds desired inner height
+        r = node.getHeight('desired', 'inner');
+        //loop through child rows
         for (i = 0; i < c.length; i++) {
-            cr = c[i].getHeight('required');
-            cd = c[i].getHeight('desired');
+            x = c[i].getHeight('required') - c[i].getHeight('desired');
             //if the row's required height exceeds it's desired height
-            //increase the required height of the compound column accordingly
-            r = (cr > cd) ? r - cd + cr : r;
+            //increase the required height of the compound accordingly
+            r = (x) ? r + x : r;
         }
-        return r;
+        //return the outer required height
+        return node.getHeight(r, 'outer');
     };
     /**
      *
      * @param {Node} node
      * @returns {number}
      */
-    calculators.compound.height.balanced = function (node) {
-        var c, h, rxs, lxs, i, xs, r, rm, b, rf, f, n;
-        //get the compound columns children rows
+
+    calculators.compound.height.normalized = function (node) {
+        var c, i, rq, rm, n, rf, f, cmp;
+        //get all child rows
         c = helpers.displayed(node.childs);
-        // if there's only a single child row, that's really it
+        // if there's only one, simply return it's height
         if (c.length === 1)
             return node.getHeight('final');
-        //if any of the children row's required height exceeds it's desired height,
-        //we call it 'excessive'.
-        //'rxs' will collect the excessive rows
-        //sorted in descending order by the amount of the excess
-        rxs = [];
-        //'lxs' will track the largest excess for sorting
-        lxs = 0;
-        // loop thru the children rows
-        for (i = 0; i < c.length; i++) {
-            r = c[i];
-            // store the amount of the current row's excess in the variable 'xs'
-            xs = r.getHeight('required') - r.getHeight('desired');
-            //if the current row's excess exceeds all previous excesses
-            if (xs > lxs) {
-                //track it as largest
-                lxs = xs;
-                //and put it on top of the collection
-                rxs.unshift(r);
-            }
-            //if it is just a mediocre excess
-            else if (xs) {
-                //store it at the end of the collection
-                /**
-                 * @todo But this is not really sorting, i mean...
-                 */
-                rxs.push(r);
-            }
-        }
+        //sort childs by the difference of their required and desired heights
+        //in descending order
+        cmp = function (c1, c2) {
+            var x1, x2;
+            x1 = c1.getHeight('required') - c1.getHeight('desired');
+            x2 = c2.getHeight('required') - c2.getHeight('desired');
+            return x2 - x1;
+        };
+        c.sort(cmp);
         //initialize some variables
-        //'rm' for remainder
+        //rm = node.getHeight('final', 'inner');
         rm = node.getHeight('final');
-        //'b' as the resulting balanced height
-        b = rm;
-        //'rf' as the remaining factor
+        n = rm;
         rf = 1;
-        //now loop thru the ordered excessive rows collected above
-        for (i = 0; i < rxs.length; i++) {
-            r = rxs[i];
-            //substract the current excessive row's required height from the remainder
-            rm = rm - r.getHeight('required');
-            //get factor
-            f = r.getHeight('factor');
-            //substract the current excessive row's height factor from the remaining factor
-            rf = rf - f;
-            //now we 'normalize' the remainder by multiplying it with the remaining factor
-            n = rm * (1 / rf);
-            if (r.getHeight('required') <= n * f) {
-                return b;
+        //now loop through the ordered child rows
+        for (i = 0; i < c.length; i++) {
+            //get the current rows height factor
+            f = c[i].getHeight('factor');
+            //get the current rows required outer height
+            rq = c[i].getHeight('required');
+            //if the current row's required height does not exceed
+            //it's normalized height (based on the calculations so far), we're done.
+            if (rq <= n * f) {
+                return n;
             }
-            b = n;
+            //calculate the remaining height of the compound
+            //after subtracting the rows required height
+            rm = rm - rq;
+            //perform the same calculation subtracting the height factor
+            rf = rf - f;
+            //the normalized height is the result of multiplying the
+            //remaining height by the inverse of the remaining factor.
+            //it  represents what the nodes final height would be
+            //if the previous rows required heights would not exceed their
+            //respective desired heights
+            n = rm * (1 / rf);
         }
-        return b;
+        //return the normalized  height
+        return n;
     };
 
     /**
@@ -621,14 +608,22 @@
      * @returns {number}
      */
     calculators.table.height.desired = function (node) {
-        //get dimensions of parent node
-        var r, s, l = node.layouter.get('rendering.layout'),
-            c = (l) ? node.get('layouts.' + l.name) : false;
-        if (c && c.height) return node.getHeight(c.height, 'outer');
-        if (l && l.height) return node.getHeight(l.height, 'outer');
-        r = (c && c.rowHeight) || (l && l.rowHeight);
-        s = helpers.displayed(node.childs).length;
-        return node.getHeight(r * s, 'outer');
+        var r, h,
+            l = node.layouter.get('rendering.layout.name');
+        //if the desired height of the table is specified
+        //in the layout settings or the nodes configuration
+        h = node.get('layouts.' + l + 'height') ||
+        node.layouter.get('rendering.layout.height');
+        //return the corresponding outer height
+        if (h) return node.getHeight(h, 'outer');
+        //if not, get the default row height,
+        h = node.get('layouts.' + l + 'rowHeight') ||
+        node.layouter.get('rendering.layout.rowHeight');
+        //multiply it by the number of rows
+        r = helpers.displayed(node.childs);
+        h = h * r.length;
+        //and return it's 'outer height' value
+        return node.getHeight(h, 'outer');
     };
 
     /**
@@ -638,19 +633,15 @@
      */
     calculators.table.height.final = function (node) {
         var r, d;
+        //get the desired and required heights
         d = node.getHeight('desired');
         r = node.getHeight('required');
+        //return the larger one
         return (r > d) ? r : d;
+
+
     };
-    /**
-     * The table derives it's dimensions from configuration or from the
-     * actual with of it's element.
-     * @param {Node} node
-     * @returns {number}
-     */
-    calculators.table.height.inner = function (h, node) {
-        return h;
-    };
+
     /**
      *
      * @param {Node} node
@@ -678,7 +669,7 @@
         return 'static';
     };
 
-    mixins.breaking = {height:{}, width:{}}
+    mixins.breaking = {height: {}, width: {}}
 
     /**
      *
@@ -694,12 +685,24 @@
      * @returns {number}
      */
     mixins.breaking.height.desired = function (node) {
-        var l = node.layouter.get('rendering.layout'),
-            c = (l && node.get('layouts.' + l.name)) || l;
-        if (c.rowHeight)
-            return c.rowHeight;
-        if (c.height)
-            return conf.height;
+        var f = node.getHeight('factor'),
+            h = node.layouter.get('rowHeight');
+        if (h)
+            return h * f;
+    };
+
+    /**
+     * Get the proportional factor (coefficient) of the columns height
+     * @param {Node} node
+     * @returns {number}
+     */
+    mixins.breaking.height.factor = function (node) {
+        var f, l = node.layouter.get('rendering.layout.name');
+        //get factor from element configuration
+        f = (l && node.get('layouts.' + l + '.height')) ||
+            //OR 1
+        1;
+        return f;
     };
     /**
      *
@@ -745,19 +748,7 @@
         var r = (node.$el.is(':empty')) ? 0 : helpers.measure(node);
         return node.getHeight(r, 'outer');
     };
-    /**
-     *
-     * @param {Node} node
-     * @returns {number}
-     */
-    calculators.breakingCol.height.factor = function (node) {
-        var conf, f, l = node.layouter.get('rendering.layout.name');
-        //get factor from element configuration
-        f = (l && node.get('layouts.' + l + '.height')) ||
-            //OR 1
-        1;
-        return f;
-    };
+
 
     /**
      * Calculator for breaking columns
@@ -923,7 +914,7 @@
     /**
      * Get the nodes height in various qualities.
      * @method Node#getHeight
-     * @param {string | number} q1 Possible values: "desired", "required", "final", "balanced" OR number.
+     * @param {string | number} q1 Possible values: "desired", "required", "final", "normalized" OR number.
      * @param {string} [q2] Possible values: "outer", "inner".
      * @returns {*}
      */
@@ -1059,29 +1050,28 @@
      * @param {renderingOptions} options
      */
     rendering.render = function (node, options) {
-        var $el = node.$el, an, a, w, h, l, i, c, p;
+        var $el = node.$el, an, a, w, h, l, i, c, p, d, pr = [];
         //get layout properties
         w = node.getWidth('final', 'inner') || 'auto';
         h = node.getHeight('final', 'inner') || 'auto';
         l = node.getPosition('left') || 0;
         p = node.getPositioning() || 'static';
         //animate layout? (only possible with numeric values for width and height)
-        an = typeof w === 'number' && typeof h ===  'number' &&
+        an = typeof w === 'number' && typeof h === 'number' &&
         helpers.deepGet(options, 'layout.animate');
-        a = (an)? an : rendering.apply;
+        a = (an) ? an : rendering.apply;
         //apply layout
-        a($el, w, h, l, p);
+        d = a($el, w, h, l, p);
+        if (d)
         //vertical alignment
-        if (node.$el.hasClass('layouter-align')) {
-            rendering.align(node, h, an);
-        }
+            if (node.$el.hasClass('layouter-align')) {
+                rendering.align(node, h, an);
+            }
         //render childs
         for (i = 0; i < node.childs.length; i++) {
             c = node.childs[i];
             rendering.render(c, options);
         }
     };
-
-
     return exports;
 }));
