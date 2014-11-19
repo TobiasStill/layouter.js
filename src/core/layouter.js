@@ -94,7 +94,7 @@
 
         for (i = 0; i < paths.length; ++i) {
             //end of path?
-            if (i + 1 == path.length)
+            if (i + 1 == paths.length)
                 current[paths[i]] = value;
             //undefined?
             else if (current[paths[i]] === undefined) {
@@ -308,21 +308,12 @@
     /**
      * @method Node#load Loade HTML content via ajax
      * @param {function} [done]
+     * @param {function} [fail]
      * @returns {jqXHR} Returns jQuery XML request object
      */
-    Node.prototype.load = function (done) {
+    Node.prototype.load = function (done, fail) {
         var req, self = this,
             url = this.get('url');
-        done = (done) ? done : function (html) {
-            //unset url to prevent loading multiple times
-            self.set('url', undefined);
-            //append loaded html
-            self.$el.append($(html));
-            //parse node
-            self.parse();
-            //re-render the whole layout
-            self.layouter.render();
-        };
         if (!url)
             return false;
         req = $.ajax(url, {
@@ -330,10 +321,21 @@
             type: "GET",
             dataType: "html"
         });
-        req.done(done);
+        req.done(function (html) {
+            //unset url to prevent loading multiple times
+            self.set('url', null);
+            //append loaded html
+            self.$el.append($(html));
+            //parse node
+            self.parse();
+            //re-render the whole layout
+            self.layouter.render();
+            if(done) done();
+        });
         req.fail(function (e) {
             // u no work?
             console.log("Node#load threw ajax error: ", e);
+            if(fail) fail();
         });
         return req;
     };
