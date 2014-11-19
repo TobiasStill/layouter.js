@@ -304,28 +304,44 @@
     };
 
     SlideShow.prototype.prev = function () {
-        var n = this.getStops().length,
+        var d,
+            self = this,
+            n = this.getStops().length,
             i = (this.stop > 0) ? this.stop - 1 : n - 1,
             stop = this.getStops()[i],
-            d;
-        if (stop.get('url')) {
+            a = this.wrapper.get('url') || stop.get('url'),
+            done = function(){
+                //have the stops increased?
+                d = self.getStops().length - n;
+                //set the current stop
+                self.stop = self.stop + d;
+                //and do it all again
+                self.prev();
+            };
+        //load content via ajax?
+        if (a) {
             //load html
-            this.load(stop);
-            //have the stops increased?
-            d = this.getStops().length - n;
-            //set the current stop
-            this.stop = this.stop + d;
-            //and do it all again
-            this.prev();
+            if(this.wrapper.get('url')) this.wrapper.load(done);
+            if(stop.get('url')) stop.load(done);
             return;
         }
         this.slideTo(i);
     };
     SlideShow.prototype.next = function () {
-        var i = (this.stop < this.getStops().length - 1) ? this.stop + 1 : 0,
+        var self = this,
+            i = (this.stop < this.getStops().length - 1) ? this.stop + 1 : 0,
             stop = this.getStops()[i],
-            url = stop.get('url');
-        if (url) this.load(stop);
+            a = this.wrapper.get('url') || stop.get('url'),
+            done = function(){
+                self.slideTo(i);
+            };
+        //load content via ajax?
+        if (a) {
+            //load html
+            if(this.wrapper.get('url')) this.wrapper.load(done);
+            if(stop.get('url')) stop.load(done);
+            return;
+        }
         this.slideTo(i);
     };
 
