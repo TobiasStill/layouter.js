@@ -77,9 +77,9 @@
      * when rendering the layout.
      * @property {calculatorCallback} percent Calculates the final width of the node
      * in percent.
-     * @property {calculatorCallback} factor Returns the proportional width factor
+     * @property {calculatorCallback} proportional Returns the proportional width factor
      * of the nodes element, relative to the inner width of the parent nodes element
-     * (e.g.: 'half the width of the parent element' => factor = 0.5).
+     * (e.g.: 'half the width of the parent element' => proportional factor = 0.5).
      * @property {calculatorCallback} delta Returns the difference of the outer and inner
      * widths of the nodes element.
      * @property {twoPlaceCalculatorCallback} inner Substracts the outer margins and paddings
@@ -95,7 +95,7 @@
      * @property {calculatorCallback} required
      * @property {calculatorCallback} normalized
      * @property {calculatorCallback} final
-     * @property {calculatorCallback} factor
+     * @property {calculatorCallback} proportional
      * @property {calculatorCallback} delta
      * @property {calculatorCallback} inner
      * @property {calculatorCallback} outer
@@ -176,7 +176,7 @@
             percent: function () {
                 return undefined;
             },
-            factor: function () {
+            proportional: function () {
                 return undefined;
             },
             delta: function (node) {
@@ -202,7 +202,7 @@
             final: function () {
                 return undefined;
             },
-            factor: function () {
+            proportional: function () {
                 return undefined;
             },
             delta: function (node) {
@@ -258,10 +258,10 @@
     calculators.row.height.desired = function (node) {
         //get dimensions of parent node
         var p = node.parent,
-        //get factor
-            f = node.getHeight('factor'),
+        //get proportional factor
+            f = node.getHeight('proportional'),
         //the desired height of the row is the desired height of the parent col/table
-        //multiplied by the derived/configured factor
+        //multiplied by the derived/configured proportional factor
             h = p.getHeight('desired', 'inner') * f;
         return node.getHeight(h, 'inner');
     };
@@ -297,10 +297,10 @@
      */
     calculators.row.height.final = function (node) {
         var p = node.parent,
-        //get factor from element configuration
-            f = node.getHeight('factor'),
+        //get proportional factor from element configuration
+            f = node.getHeight('proportional'),
         //get the normalized inner height of the nodes parent col/table
-        //multiplied by factor
+        //multiplied by proportional factor
             b = p.getHeight('normalized', 'inner') * f,
         //get the required height
             r = node.getHeight('required');
@@ -312,8 +312,8 @@
      * @param {Node} node
      * @returns {number}
      */
-    calculators.row.height.factor = function (node) {
-        //get factor from element configuration
+    calculators.row.height.proportional = function (node) {
+        //get proportional factor from element configuration
         var l = node.layouter.get('rendering.layout.name');
         return (l && node.get('layouts.' + l + '.height')) ||
                 // OR derived from the number sibling rows
@@ -360,9 +360,9 @@
         var p = node.parent,
         //get parent rows inner width
             w = p.getWidth('final', 'inner'),
-        //get factor
-            f = node.getWidth('factor');
-        //the columns final width is the rows inner width multiplied by factor
+        //get proportional factor
+            f = node.getWidth('proportional');
+        //the columns final width is the rows inner width multiplied by proportional factor
         return w * f;
     };
     /**
@@ -372,9 +372,9 @@
      */
     calculators.col.width.percent = function (node) {
         var p = 100,
-        //get factor
-            f = node.getWidth('factor');
-        //the columns width in percent equals 100 * factor
+        //get proportional factor
+            f = node.getWidth('proportional');
+        //the columns width in percent equals 100 * proportional factor
         return p * f;
     };
     /**
@@ -382,9 +382,9 @@
      * @param {Node} node
      * @returns {number}
      */
-    calculators.col.width.factor = function (node) {
+    calculators.col.width.proportional = function (node) {
         var f, l = node.layouter.get('rendering.layout.name');
-        //get factor from element configuration
+        //get proportional factor from element configuration
         f = (l && node.get('layouts.' + l + '.width')) ||
             // OR derived from the number sibling rows
         1 / helpers.displayed(node.parent.childs).length ||
@@ -552,8 +552,8 @@
         rf = 1;
         //now loop through the ordered child rows
         for (i = 0; i < c.length; i++) {
-            //get the current rows height factor
-            f = c[i].getHeight('factor');
+            //get the current rows height proportional factor
+            f = c[i].getHeight('proportional');
             //get the current rows required outer height
             rq = c[i].getHeight('required');
             //if the current row's required height does not exceed
@@ -564,13 +564,13 @@
             //calculate the remaining height of the compound
             //after subtracting the rows required height
             rm = rm - rq;
-            //perform the same calculation subtracting the height factor
+            //calculate the remaining height proportional factor
             rf = rf - f;
             //the normalized height is the result of multiplying the
-            //remaining height by the inverse of the remaining factor.
+            //remaining height by the inverse of the remaining proportional factor.
             //it  represents what the nodes final height would be
             //if the previous rows required heights would not exceed their
-            //respective desired heights
+            //respective normalized heights
             n = rm * (1 / rf);
         }
         //return the normalized  height
@@ -685,7 +685,7 @@
      * @returns {number}
      */
     mixins.breaking.height.desired = function (node) {
-        var f = node.getHeight('factor'),
+        var f = node.getHeight('proportional'),
             h = node.layouter.get('rowHeight');
         if (h)
             return h * f;
@@ -696,9 +696,9 @@
      * @param {Node} node
      * @returns {number}
      */
-    mixins.breaking.height.factor = function (node) {
+    mixins.breaking.height.proportional = function (node) {
         var f, l = node.layouter.get('rendering.layout.name');
-        //get factor from element configuration
+        //get proportional factor from element configuration
         f = (l && node.get('layouts.' + l + '.height')) ||
             //OR 1
         1;
