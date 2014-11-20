@@ -3,6 +3,7 @@ node_modules
 *.bat
 *.log
 *.db
+*.iml
 .settings
 .idea
 .project
