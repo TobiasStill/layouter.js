@@ -66,6 +66,19 @@
     exports.helpers = helpers = {};
 
     /**
+     * Return all nodes that have display
+     * @param {Array.<Node>} nodes
+     * @returns {Array}
+     */
+    helpers.displayed = function (nodes) {
+        var d = [], i;
+        for (i = 0; i < nodes.length; i++) {
+            if (nodes[i].isVisible())
+                d.push(nodes[i]);
+        }
+        return d;
+    };
+    /**
      *
      * @type {Function}
      */
@@ -203,7 +216,7 @@
     /**
      * Attach child nodes
      * @method Node#attach
-     * @param nodes {array.<Node>}
+     * @param nodes {Array.<Node>}
      */
     Node.prototype.attach = function (nodes) {
         var l = this.childs.length;
@@ -225,15 +238,19 @@
      * @param {renderingOptions} [options]
      */
     Node.prototype.render = function (options) {
+        var c;
         if (!options || !options.render)
         //get rendering options
             options = (options && options.rendering) ||
             this.layouter.get('rendering');
+        //reset layout properties
+        this.reset();
         //execute rendering callback
         options.render(this, options);
         //render childs
-        for (var i = 0; i < this.childs.length; i++) {
-            options.render(this.childs[i], options);
+        c = helpers.displayed(this.childs);
+        for (var i = 0; i < c.length; i++) {
+            options.render(c[i], options);
         }
     };
     /**
@@ -339,6 +356,16 @@
         });
         return req;
     };
+
+    /**
+     * Checks if the nodes element has display
+     * @method Node#isVisible
+     * @returns {boolean}
+     */
+    Node.prototype.isVisible = function () {
+        //check if the nodes element is visible
+        return this.$el.is(':visible');
+    };
     /**
      * The node parsers callback function returns a jQuery collection
      * from a jQuery element/collection.
@@ -383,13 +410,13 @@
      * @property {onCreateCallback} onCreate
      */
     /**
-     * The Layouter wraps the node tree,
-     * manages global settings,
+     * The Layouter manages the node tree,
+     * stores global settings,
      * triggers rendering.
      * @class Layouter
      * @param {$ | HTMLElement | string} context The HTML context - jQuery, DOM element or string(HTML)
      * @param {layouterSettings} options
-     *
+     *@todo: The Layouter should manage multiple node-trees
      * */
     exports.Layouter = Layouter = function (context, options) {
         /**
