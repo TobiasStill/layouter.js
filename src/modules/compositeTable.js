@@ -158,6 +158,25 @@
      */
     defaults.parser = parser = {};
 
+    /**
+     * Measure height of a node by content
+     * @param {Node} nodes
+     * @returns {number}
+     */
+    helpers.measure = function (node) {
+        var $clone = node.$el.clone(), r, p, w;
+        $clone.css({
+            visibility: 'hidden',
+            position: node.getPositioning() || 'static',
+            width: node.getWidth('final', 'inner') || 'auto',
+            height: 'auto'
+        });
+        p = node.parent ? node.parent.$el : document.body;
+        $clone.appendTo(p);
+        r = $clone.height();
+        $clone.remove();
+        return r;
+    };
 
     /**
      * define the calculators
@@ -313,13 +332,38 @@
      * @returns {number}
      */
     calculators.row.height.proportional = function (node) {
+        var l = node.layouter.get('rendering.layout.name'), p, s, i, j, n, sp,
+            getFromConfig = function (nd) {
+                var h, p;
+                h = l && nd.get('layouts.' + l + '.height');
+                if (h > 1) p = nd.parent.getHeight('desired', 'inner') / h;
+                if (h && h < 1) p = h;
+                return p;
+            };
         //get proportional factor from element configuration
-        var l = node.layouter.get('rendering.layout.name');
-        return (l && node.get('layouts.' + l + '.height')) ||
-                // OR derived from the number sibling rows
-            1 / helpers.displayed(node.parent.childs).length ||
-                //OR 1
-            1;
+        p = getFromConfig(node);
+        //if successful, return
+        if (p) return p;
+        //else get sibling rows
+        s = helpers.displayed(node.parent.childs);
+        //count siblings
+        n = s.length;
+        //if tne node represents a singleton row, return 1
+        if (n === 1) return 1;
+        //if no layout settings are present, determine the proportional factor
+        //from the number of siblings
+        if (!l) return 1 / n;
+        //else, loop through all siblings
+        //and calculate the proportional factor with regard to the other siblings
+        //configuration
+        sp = j = 0;
+        for (i = 0; i < s.length; i++) {
+            p = getFromConfig(s[i]);
+            if (!p) continue;
+            sp = sp + p;
+            j++;
+        }
+        return (1 - sp) / (n - j);
     };
     /**
      *
@@ -383,14 +427,38 @@
      * @returns {number}
      */
     calculators.col.width.proportional = function (node) {
-        var f, l = node.layouter.get('rendering.layout.name');
+        var l = node.layouter.get('rendering.layout.name'), p, s, i, j, n, sp,
+            getFromConfig = function (nd) {
+                var w, p;
+                w = l && nd.get('layouts.' + l + '.width');
+                if (w > 1) p = nd.parent.getWidth('final', 'inner') / w;
+                if (w && w < 1) p = w;
+                return p;
+            };
         //get proportional factor from element configuration
-        f = (l && node.get('layouts.' + l + '.width')) ||
-            // OR derived from the number sibling rows
-        1 / helpers.displayed(node.parent.childs).length ||
-            //OR 1
-        1;
-        return f;
+        p = getFromConfig(node);
+        //if successful, return
+        if (p) return p;
+        //else get sibling cols
+        s = helpers.displayed(node.parent.childs);
+        //count siblings
+        n = s.length;
+        //if tne node represents a singleton col, return 1
+        if (n === 1) return 1;
+        //if no layout settings are present, determine the proportional factor
+        //from the number of siblings
+        if (!l) return 1 / n;
+        //else, loop through all siblings
+        //and calculate the proportional factor with regard to the other siblings
+        //configuration
+        sp = j = 0;
+        for (i = 0; i < s.length; i++) {
+            p = getFromConfig(s[i]);
+            if (!p) continue;
+            sp = sp + p;
+            j++;
+        }
+        return (1 - sp) / (n - j);
     };
 
     /**
@@ -524,6 +592,13 @@
         return node.getHeight(r, 'outer');
     };
     /**
+     * Calculate the compounds 'normalized' height.
+     * The normalized height represents the would-be height of the compound
+     * without any rows requiring more height than calculated based on proportionality.
+     * Since the compounds final height can be larger than it's required height (based on the height
+     * of it's siblings) we cannot calculate
+     * the normalized height simply by subtracting it's extra requirements from the desired height nor the final height
+     * (since we cannot know what these extras will finally be without knowing the normalized height first).
      *
      * @param {Node} node
      * @returns {number}
@@ -559,7 +634,7 @@
             //if the current row's required height does not exceed
             //it's normalized height (based on the calculations so far), we're done.
             if (rq <= n * f) {
-                return n;
+                break;
             }
             //calculate the remaining height of the compound
             //after subtracting the rows required height
@@ -568,9 +643,6 @@
             rf = rf - f;
             //the normalized height is the result of multiplying the
             //remaining height by the inverse of the remaining proportional factor.
-            //it  represents what the nodes final height would be
-            //if the previous rows required heights would not exceed their
-            //respective normalized heights
             n = rm * (1 / rf);
         }
         //return the normalized  height
@@ -823,39 +895,6 @@
     };
 
 
-    /**
-     * Return all nodes that have display
-     * @param {Array.<Node>} nodes
-     * @returns {Array}
-     */
-    helpers.displayed = function (nodes) {
-        var d = [], i;
-        for (i = 0; i < nodes.length; i++) {
-            if (nodes[i].hasDisplay())
-                d.push(nodes[i]);
-        }
-        return d;
-    };
-    /**
-     * Measure height of a node by content
-     * @param {Node} nodes
-     * @returns {number}
-     */
-    helpers.measure = function (node) {
-        var $clone = node.$el.clone(), r, p, w;
-        $clone.css({
-            visibility: 'hidden',
-            position: node.getPositioning() || 'static',
-            width: node.getWidth('final', 'inner') || 'auto',
-            height: 'auto'
-        });
-        p = node.parent ? node.parent.$el : document.body;
-        $clone.appendTo(p);
-        r = $clone.height();
-        $clone.remove();
-        return r;
-    };
-
 
     /**
      * Override this function to reset nodes
@@ -961,25 +1000,6 @@
         return l.positioning;
     };
     /**
-     * Checks if the nodes element has display
-     * @method Node#hasDisplay
-     * @returns {boolean}
-     */
-    Node.prototype.hasDisplay = function () {
-        //get the jQuery DOM-elements of all the nodes ascendants
-        // via anonymous function
-        var ascendants = function (n, $a) {
-                if (n.parent === undefined)
-                    return $a;
-                $a.add(n.parent.$el);
-                return ascendants(n.parent, $a);
-            },
-            $a = ascendants(this, $());
-        //check if neither the node nor any of it's ascendants has display:none
-        return this.$el.css('display') !== 'none' && $a.css('display') !== 'none';
-    };
-
-    /**
      *
      * @param {jQuery} $el
      * @returns {jQuery|null}
@@ -1050,28 +1070,35 @@
      * @param {renderingOptions} options
      */
     rendering.render = function (node, options) {
-        var $el = node.$el, an, a, w, h, l, i, c, p, d, pr = [];
+        var $el = node.$el, an, a, w, h, l, i, c, p, d = [];
         //get layout properties
         w = node.getWidth('final', 'inner') || 'auto';
         h = node.getHeight('final', 'inner') || 'auto';
         l = node.getPosition('left') || 0;
         p = node.getPositioning() || 'static';
+        //if the node is a table, we don't need a fixed height
+        //so it is possible to hide and show rows
+        if (node.getType() === 'table')
+            h = 'auto';
         //animate layout? (only possible with numeric values for width and height)
         an = typeof w === 'number' && typeof h === 'number' &&
         helpers.deepGet(options, 'layout.animate');
         a = (an) ? an : rendering.apply;
-        //apply layout
-        d = a($el, w, h, l, p);
-        if (d)
-        //vertical alignment
-            if (node.$el.hasClass('layouter-align')) {
-                rendering.align(node, h, an);
-            }
-        //render childs
+        //apply layout and store the returned promise
+        //for returning it later
+        d.push(a($el, w, h, l, p));
+        //do vertical alignment and store the returned promise
+        //for returning it later
+        if (node.$el.hasClass('layouter-align')) {
+            d.push(rendering.align(node, h, an));
+        }
+        //render childs and store the returned promises
+        //for returning them later
         for (i = 0; i < node.childs.length; i++) {
             c = node.childs[i];
-            rendering.render(c, options);
+            d = d.concat(d, rendering.render(c, options));
         }
+        return d;
     };
     return exports;
 }));
